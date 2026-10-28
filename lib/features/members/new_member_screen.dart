@@ -218,6 +218,7 @@ class _MemberFormScreenState extends ConsumerState<MemberFormScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Status',
                   helperText: 'Suspended and inactive members can\'t check in.',
+                  helperMaxLines: 2,
                 ),
                 items: const [
                   DropdownMenuItem(value: 'active', child: Text('Active')),
