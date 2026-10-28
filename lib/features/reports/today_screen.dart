@@ -78,6 +78,8 @@ class TodayScreen extends ConsumerWidget {
                   ],
                   format: (v) => '${v.round()}',
                   semanticTitle: 'Check-ins per day, last 7 days',
+                  periodPrefix: '',
+                  lastLabel: 'Today',
                 ),
                 const SizedBox(height: AppSpace.lg),
                 const _PeriodSection(),

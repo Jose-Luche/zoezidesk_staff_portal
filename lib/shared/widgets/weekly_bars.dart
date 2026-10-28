@@ -18,6 +18,8 @@ class WeeklyBars extends StatefulWidget {
     required this.semanticTitle,
     this.height = 140,
     this.compact = false,
+    this.periodPrefix = 'Week of ',
+    this.lastLabel = 'This week',
   });
 
   /// One value per week; null means nothing that week.
@@ -31,6 +33,12 @@ class WeeklyBars extends StatefulWidget {
 
   /// A small sparkline without labels or tapping (for lists).
   final bool compact;
+
+  /// Before each bar's label when read out or selected ('' for daily bars).
+  final String periodPrefix;
+
+  /// Under the last bar, e.g. 'Today' for daily bars.
+  final String lastLabel;
 
   @override
   State<WeeklyBars> createState() => _WeeklyBarsState();
@@ -55,7 +63,7 @@ class _WeeklyBarsState extends State<WeeklyBars> {
   String _describe(int i) {
     final v = widget.values[i];
     final label = i < widget.labels.length ? widget.labels[i] : '';
-    return 'Week of $label: ${v == null || v == 0 ? 'none' : widget.format(v)}';
+    return '${widget.periodPrefix}$label: ${v == null || v == 0 ? 'none' : widget.format(v)}';
   }
 
   @override
@@ -105,7 +113,7 @@ class _WeeklyBarsState extends State<WeeklyBars> {
                   children: [
                     Text(widget.labels.isEmpty ? '' : widget.labels.first, style: text.bodySmall),
                     const Spacer(),
-                    Text(widget.labels.isEmpty ? '' : 'This week', style: text.bodySmall),
+                    Text(widget.labels.isEmpty ? '' : widget.lastLabel, style: text.bodySmall),
                   ],
                 ),
               ],
@@ -116,11 +124,18 @@ class _WeeklyBarsState extends State<WeeklyBars> {
 
 /// The values as a plain list, for reading without the chart.
 class WeeklyTable extends StatelessWidget {
-  const WeeklyTable({super.key, required this.values, required this.labels, required this.format});
+  const WeeklyTable({
+    super.key,
+    required this.values,
+    required this.labels,
+    required this.format,
+    this.periodPrefix = 'Week of ',
+  });
 
   final List<double?> values;
   final List<String> labels;
   final String Function(double value) format;
+  final String periodPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +147,7 @@ class WeeklyTable extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
             child: Row(
               children: [
-                Expanded(child: Text('Week of ${i < labels.length ? labels[i] : ''}', style: text.bodyMedium)),
+                Expanded(child: Text('$periodPrefix${i < labels.length ? labels[i] : ''}', style: text.bodyMedium)),
                 Text((values[i] ?? 0) == 0 ? '—' : format(values[i]!), style: text.bodyMedium),
               ],
             ),
