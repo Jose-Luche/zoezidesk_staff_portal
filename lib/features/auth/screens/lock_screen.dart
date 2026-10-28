@@ -8,6 +8,7 @@ import '../../../data/models/staff.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/member_tile.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/state_message.dart';
 import '../state/session_controller.dart';
 import '../widgets/auth_scaffold.dart';
@@ -75,19 +76,35 @@ class LockScreen extends ConsumerWidget {
                 AsyncView(
                   value: staff,
                   onRetry: () => ref.invalidate(lockScreenStaffProvider),
+                  // Inside this screen's ListView, so not a scrolling skeleton.
+                  loading: const SkeletonList.inline(itemCount: 2),
                   data: (people) => people.isEmpty
                       ? const StateMessage.empty(
                           title: 'Nobody can sign in yet',
                           message: 'Staff set their PIN in the app on their own phone, or on the web under Staff App PIN.',
                         )
-                      : Wrap(
-                          spacing: AppSpace.md,
-                          runSpacing: AppSpace.md,
-                          children: [
-                            for (final person in people)
-                              _PersonButton(person: person, onTap: () => _askPin(context, ref, person)),
-                          ],
-                        ),
+                      // Equal cards sharing the row evenly: two across on a phone,
+                      // more on a tablet, every card the same height.
+                      : LayoutBuilder(builder: (context, constraints) {
+                          const minCard = 150.0;
+                          final columns = (constraints.maxWidth / (minCard + AppSpace.md)).floor().clamp(2, 5);
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: people.length,
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: columns,
+                              crossAxisSpacing: AppSpace.md,
+                              mainAxisSpacing: AppSpace.md,
+                              // Avatar, name and up to two lines of roles.
+                              mainAxisExtent: 176 * MediaQuery.textScalerOf(context).scale(1),
+                            ),
+                            itemBuilder: (_, i) => _PersonButton(
+                              person: people[i],
+                              onTap: () => _askPin(context, ref, people[i]),
+                            ),
+                          );
+                        }),
                 ),
               ],
             ),
@@ -132,15 +149,16 @@ class _PersonButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 132,
+    return SizedBox.expand(
       child: Card(
+        margin: EdgeInsets.zero,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppRadius.card),
           child: Padding(
             padding: const EdgeInsets.all(AppSpace.md),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 MemberAvatar(initials: person.initials, size: 56),
                 const SizedBox(height: AppSpace.sm),
@@ -148,7 +166,7 @@ class _PersonButton extends StatelessWidget {
                 Text(
                   person.roleLabel,
                   textAlign: TextAlign.center,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
                 ),
