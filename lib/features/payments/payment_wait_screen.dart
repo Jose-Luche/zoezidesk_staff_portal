@@ -9,7 +9,7 @@ import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../shared/widgets/state_message.dart';
-import 'payment_providers.dart';
+import '../desk/desk_providers.dart';
 
 /// Waits for the member to approve an M-Pesa request on their phone.
 class PaymentWaitScreen extends ConsumerStatefulWidget {
@@ -53,7 +53,7 @@ class _PaymentWaitScreenState extends ConsumerState<PaymentWaitScreen> {
       });
       if (result.payment.status != 'pending') {
         _timer?.cancel();
-        ref.invalidate(shiftProvider);
+        memberDataChanged(ref);
       }
     } catch (_) {
       // A dropped connection: try again on the next tick.

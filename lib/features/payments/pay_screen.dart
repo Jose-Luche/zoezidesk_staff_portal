@@ -97,8 +97,7 @@ class _PayFormState extends ConsumerState<_PayForm> {
         reference: _reference.text.trim().isEmpty ? null : _reference.text.trim(),
         notify: _notify,
       );
-      ref.invalidate(todayCheckInsProvider);
-      ref.invalidate(shiftProvider);
+      memberDataChanged(ref);
       if (!mounted) return;
       await showDialog<void>(
         context: context,

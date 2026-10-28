@@ -37,7 +37,7 @@ class _MemberActionsState extends ConsumerState<_MemberActions> {
     setState(() => _busy = true);
     try {
       final result = await ref.read(staffApiProvider).checkIn(memberId: widget.member.id);
-      ref.invalidate(todayCheckInsProvider);
+      memberDataChanged(ref);
       setState(() {
         _ok = result.success;
         _result = result.message;

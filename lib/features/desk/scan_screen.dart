@@ -51,7 +51,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     });
     try {
       final result = await ref.read(staffApiProvider).checkIn(qrCode: code);
-      ref.invalidate(todayCheckInsProvider);
+      memberDataChanged(ref);
       result.success ? HapticFeedback.mediumImpact() : HapticFeedback.heavyImpact();
       setState(() {
         _result = result;
