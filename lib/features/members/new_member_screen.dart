@@ -5,31 +5,73 @@ import 'package:go_router/go_router.dart';
 import '../../core/errors/app_failure.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
+import '../../shared/widgets/async_view.dart';
 import '../auth/state/session_controller.dart';
 import '../auth/widgets/auth_scaffold.dart';
+import '../desk/desk_providers.dart';
 import 'member_providers.dart';
 
 /// Register a new member at the front desk. If the phone or ID number is
 /// already on file, the possible matches are shown first.
-class NewMemberScreen extends ConsumerStatefulWidget {
+class NewMemberScreen extends StatelessWidget {
   const NewMemberScreen({super.key});
 
   @override
-  ConsumerState<NewMemberScreen> createState() => _NewMemberScreenState();
+  Widget build(BuildContext context) => const MemberFormScreen();
 }
 
-class _NewMemberScreenState extends ConsumerState<NewMemberScreen> {
+/// Correct a member's details: phone, name, ID number, status.
+class EditMemberScreen extends ConsumerWidget {
+  const EditMemberScreen({super.key, required this.memberId});
+
+  final int memberId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(memberProfileProvider(memberId));
+    return profile.hasValue
+        ? MemberFormScreen(existing: profile.requireValue)
+        : Scaffold(
+            appBar: AppBar(title: const Text('Edit member')),
+            body: AsyncView(
+              value: profile,
+              onRetry: () => ref.invalidate(memberProfileProvider(memberId)),
+              data: (_) => const SizedBox.shrink(),
+            ),
+          );
+  }
+}
+
+/// The member form, for registering ([existing] null) or editing.
+class MemberFormScreen extends ConsumerStatefulWidget {
+  const MemberFormScreen({super.key, this.existing});
+
+  final MemberProfile? existing;
+
+  @override
+  ConsumerState<MemberFormScreen> createState() => _MemberFormScreenState();
+}
+
+class _MemberFormScreenState extends ConsumerState<MemberFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _phone = TextEditingController();
-  final _email = TextEditingController();
-  final _idNumber = TextEditingController();
-  String? _gender;
+  late final _name = TextEditingController(text: widget.existing?.card.name);
+  late final _phone = TextEditingController(
+    text: widget.existing == null ? null : formatLocalPhone(widget.existing!.card.phone).replaceAll(' ', ''),
+  );
+  late final _email = TextEditingController(text: _detail('email'));
+  late final _idNumber = TextEditingController(text: _detail('id_number'));
+  late String? _gender = _detail('gender');
+  late String _status = widget.existing?.card.status ?? 'active';
   bool _busy = false;
   String? _error;
   Map<String, String> _fieldErrors = const {};
+
+  bool get _editing => widget.existing != null;
+
+  String? _detail(String key) => widget.existing?.details[key] as String?;
 
   @override
   void dispose() {
@@ -39,6 +81,18 @@ class _NewMemberScreenState extends ConsumerState<NewMemberScreen> {
     super.dispose();
   }
 
+  Map<String, dynamic> _fields() => {
+        'name': _name.text.trim(),
+        // Stored as 2547…, like the rest of the system.
+        'phone': normalizeKenyanPhone(_phone.text),
+        // On edit, an emptied field is cleared; on registration it is just left out.
+        if (_editing || _email.text.trim().isNotEmpty) 'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
+        if (_editing || _idNumber.text.trim().isNotEmpty)
+          'id_number': _idNumber.text.trim().isEmpty ? null : _idNumber.text.trim(),
+        if (_editing || _gender != null) 'gender': _gender,
+        if (_editing) 'status': _status,
+      };
+
   Future<void> _submit({bool confirmDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
@@ -47,14 +101,17 @@ class _NewMemberScreenState extends ConsumerState<NewMemberScreen> {
       _error = null;
       _fieldErrors = const {};
     });
+    final api = ref.read(staffApiProvider);
     try {
-      final result = await ref.read(staffApiProvider).register({
-        'name': _name.text.trim(),
-        'phone': _phone.text.trim(),
-        if (_email.text.trim().isNotEmpty) 'email': _email.text.trim(),
-        if (_idNumber.text.trim().isNotEmpty) 'id_number': _idNumber.text.trim(),
-        'gender': ?_gender,
-      }, confirmDuplicate: confirmDuplicate);
+      if (_editing) {
+        await api.updateMember(widget.existing!.card.id, _fields());
+        memberDataChanged(ref);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Member updated.')));
+        context.pop();
+        return;
+      }
+      final result = await api.register(_fields(), confirmDuplicate: confirmDuplicate);
       if (!mounted) return;
       switch (result) {
         case PossibleDuplicates(:final duplicates):
@@ -113,7 +170,7 @@ class _NewMemberScreenState extends ConsumerState<NewMemberScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register member')),
+      appBar: AppBar(title: Text(_editing ? 'Edit member' : 'Register member')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -154,12 +211,31 @@ class _NewMemberScreenState extends ConsumerState<NewMemberScreen> {
               ],
               onChanged: (v) => setState(() => _gender = v),
             ),
+            if (_editing) ...[
+              const SizedBox(height: AppSpace.md),
+              DropdownButtonFormField<String>(
+                initialValue: _status,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  helperText: 'Suspended and inactive members can\'t check in.',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'active', child: Text('Active')),
+                  DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+                  DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
+                ],
+                onChanged: (v) => setState(() => _status = v ?? _status),
+              ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: AppSpace.md),
               FormErrorText(_error!),
             ],
             const SizedBox(height: AppSpace.lg),
-            FilledButton(onPressed: _busy ? null : _submit, child: Text(_busy ? 'Saving…' : 'Register')),
+            FilledButton(
+              onPressed: _busy ? null : _submit,
+              child: Text(_busy ? 'Saving…' : (_editing ? 'Save changes' : 'Register')),
+            ),
           ],
         ),
       ),

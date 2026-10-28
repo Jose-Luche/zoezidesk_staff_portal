@@ -52,6 +52,11 @@ class _DeskScreenState extends ConsumerState<DeskScreen> {
       appBar: AppBar(
         title: const Text('Front desk'),
         actions: [
+          IconButton(
+            tooltip: 'Follow-ups',
+            icon: const Icon(Icons.event_busy_rounded),
+            onPressed: () => context.push(Routes.followUps),
+          ),
           if (staff.can('payments.record', 'payments.view'))
             IconButton(
               tooltip: 'My shift',

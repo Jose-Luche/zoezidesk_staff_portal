@@ -160,6 +160,14 @@ class StaffApi {
         return MemberCard.fromJson(res.data!['member'] as Map<String, dynamic>);
       });
 
+  /// Who to call: memberships ending within [days], and ones that ended in
+  /// the last [lapsedDays] without a renewal.
+  Future<({List<FollowUp> expiring, List<FollowUp> lapsed})> followUps({int days = 7, int lapsedDays = 14}) async {
+    final json = await _get('/staff/members/expiring', {'days': days, 'lapsed_days': lapsedDays});
+    List<FollowUp> rows(String key) => [for (final r in json[key] as List) FollowUp.fromJson(r as Map<String, dynamic>)];
+    return (expiring: rows('expiring'), lapsed: rows('lapsed'));
+  }
+
   // ── Payments ──────────────────────────────────────────────────────
 
   Future<Plans> plans() async {
@@ -228,6 +236,19 @@ class StaffApi {
         (member: MemberCard.fromJson(b['member'] as Map<String, dynamic>), status: b['status'] as String),
     ];
   }
+
+  /// Books a member into a class. Returns the server's message (e.g. already booked).
+  Future<String> bookClass(int classId, int memberId) => guardRequest(() async {
+        final res = await _dio.post<Map<String, dynamic>>('/staff/classes/$classId/bookings',
+            data: {'member_id': memberId}, options: _once());
+        return res.data!['message'] as String? ?? 'Booked.';
+      });
+
+  Future<void> cancelBooking(int classId, int memberId) =>
+      guardRequest(() => _dio.delete<void>('/staff/classes/$classId/bookings/$memberId'));
+
+  Future<void> setAttended(int classId, int memberId, {required bool attended}) => guardRequest(
+      () => _dio.put<void>('/staff/classes/$classId/bookings/$memberId/attended', data: {'attended': attended}));
 
   // ── Trainers ──────────────────────────────────────────────────────
 

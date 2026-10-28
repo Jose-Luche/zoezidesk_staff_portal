@@ -27,7 +27,17 @@ class MemberScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(memberProfileProvider(memberId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Member')),
+      appBar: AppBar(
+        title: const Text('Member'),
+        actions: [
+          if (profile.value?.canEdit ?? false)
+            IconButton(
+              tooltip: 'Edit member',
+              icon: const Icon(Icons.edit_rounded),
+              onPressed: () => context.push(Routes.editMember(memberId)),
+            ),
+        ],
+      ),
       body: AsyncView(
         value: profile,
         onRetry: () => ref.invalidate(memberProfileProvider(memberId)),

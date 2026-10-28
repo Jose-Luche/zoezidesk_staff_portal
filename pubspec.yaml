@@ -22,6 +22,8 @@ dependencies:
   flutter_svg: ^2.3.0
   # Scanning members' QR codes at the front desk
   mobile_scanner: ^7.4.2
+  # Calling and WhatsApp-ing members from the follow-up list
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

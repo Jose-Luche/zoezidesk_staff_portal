@@ -273,3 +273,22 @@ class Shift {
   final List<PaymentRecord> payments;
   final List<({int staffId, String name, int total, int count})>? everyone;
 }
+
+/// Someone to follow up: their membership ends soon, or ended without a renewal.
+class FollowUp {
+  const FollowUp({required this.member, required this.expiresAt, required this.days, this.plan});
+
+  factory FollowUp.fromJson(Map<String, dynamic> json) => FollowUp(
+        member: MemberCard.fromJson(json['member'] as Map<String, dynamic>),
+        plan: json['plan'] as String?,
+        expiresAt: DateTime.parse(json['expires_at'] as String),
+        days: json['days'] as int,
+      );
+
+  final MemberCard member;
+  final String? plan;
+  final DateTime expiresAt;
+
+  /// Days until the end (negative once it has ended).
+  final int days;
+}

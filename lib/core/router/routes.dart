@@ -20,6 +20,8 @@ abstract final class Routes {
   static const shift = '/shift';
   static const newMember = '/members/new';
   static String member(int id) => '/members/$id';
+  static String editMember(int id) => '/members/$id/edit';
+  static const followUps = '/follow-ups';
   static String pay(int memberId) => '/members/$memberId/pay';
   static String payment(int paymentId) => '/payments/$paymentId';
   static String roster(int classId) => '/classes/$classId/roster';

@@ -10,6 +10,7 @@ import '../../features/classes/classes_screen.dart';
 import '../../features/clients/clients_screen.dart';
 import '../../features/design_gallery/design_gallery_screen.dart';
 import '../../features/desk/desk_screen.dart';
+import '../../features/desk/follow_ups_screen.dart';
 import '../../features/desk/scan_screen.dart';
 import '../../features/members/member_screen.dart';
 import '../../features/members/members_screen.dart';
@@ -78,6 +79,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/members/:id',
         builder: (_, state) => MemberScreen(memberId: int.parse(state.pathParameters['id']!)),
       ),
+      GoRoute(
+        path: '/members/:id/edit',
+        builder: (_, state) => EditMemberScreen(memberId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(path: Routes.followUps, builder: (_, _) => const FollowUpsScreen()),
       GoRoute(
         path: '/members/:id/pay',
         builder: (_, state) => PayScreen(memberId: int.parse(state.pathParameters['id']!)),

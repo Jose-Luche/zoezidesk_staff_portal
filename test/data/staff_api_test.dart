@@ -104,4 +104,30 @@ void main() {
     expect(shift.voidedAmount, 500);
     expect(shift.everyone!.single.name, 'Amina');
   });
+
+  test('follow-ups come back as ending soon and lapsed', () async {
+    adapter.reply(200, {
+      'success': true,
+      'expiring': [
+        {'member': card(), 'plan': 'Monthly', 'expires_at': '2026-11-02', 'days': 3},
+      ],
+      'lapsed': [
+        {'member': card(id: 13, current: false), 'plan': 'Monthly', 'expires_at': '2026-10-20', 'days': -10},
+      ],
+    });
+
+    final f = await api.followUps();
+
+    expect(f.expiring.single.days, 3);
+    expect(f.lapsed.single.member.id, 13);
+    expect(adapter.requests.single.queryParameters, {'days': 7, 'lapsed_days': 14});
+  });
+
+  test('booking a member into a class is safe to retry', () async {
+    adapter.reply(200, {'success': true, 'message': 'Jane Wanjiku is booked in.', 'booked': 1});
+
+    expect(await api.bookClass(5, 12), 'Jane Wanjiku is booked in.');
+    expect(adapter.requests.single.path, '/staff/classes/5/bookings');
+    expect(adapter.requests.single.headers[RetryInterceptor.idempotencyHeader], isNotEmpty);
+  });
 }

@@ -22,7 +22,16 @@ class ClientsScreen extends ConsumerWidget {
     final text = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My clients')),
+      appBar: AppBar(
+        title: const Text('My clients'),
+        actions: [
+          IconButton(
+            tooltip: 'Follow-ups',
+            icon: const Icon(Icons.event_busy_rounded),
+            onPressed: () => context.push(Routes.followUps),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(trainerDashboardProvider.future),
         child: AsyncView(
