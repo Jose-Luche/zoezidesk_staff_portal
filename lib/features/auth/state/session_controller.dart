@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../../../data/models/staff.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../desk/offline_desk.dart';
 
 sealed class SessionState {
   const SessionState({this.device});
@@ -70,6 +73,19 @@ class SessionController extends Notifier<SessionState> {
   /// Sign out, or lock a front-desk device for the next person.
   Future<void> signOut({String? reason}) async {
     final device = state.device;
+    final session = state;
+    // A personal phone: send what was checked in offline, then the member
+    // list and anything unsent leave with the staff member.
+    if (session is SignedIn && !session.staff.sharedDevice) {
+      if (ref.exists(offlineDeskProvider)) {
+        try {
+          await ref.read(offlineDeskProvider.notifier).send().timeout(const Duration(seconds: 10));
+        } on TimeoutException {
+          // Offline: they are dropped below.
+        }
+      }
+      await clearOfflineDesk(ref);
+    }
     await _auth.signOut();
     state = SignedOut(device: device, reason: reason);
   }

@@ -130,15 +130,27 @@ class StaffApi {
   // ── Front desk ────────────────────────────────────────────────────
 
   /// A refused check-in (expired, suspended, unknown code) is a result, not an error.
-  Future<CheckInResult> checkIn({String? qrCode, int? memberId}) => guardRequest(() async {
-        final options = _once().copyWith(validateStatus: (s) => s != null && (s < 300 || s == 422));
+  /// [at] and [idempotencyKey] are for check-ins recorded offline and sent
+  /// later: when the member came, and the key kept with the queued entry.
+  Future<CheckInResult> checkIn({String? qrCode, int? memberId, DateTime? at, String? idempotencyKey}) =>
+      guardRequest(() async {
+        final options = Options(headers: {RetryInterceptor.idempotencyHeader: idempotencyKey ?? _uuid.v4()})
+            .copyWith(validateStatus: (s) => s != null && (s < 300 || s == 422));
         final res = await _dio.post<Map<String, dynamic>>('/staff/checkins',
-            data: {'qr_code': ?qrCode, 'member_id': ?memberId}, options: options);
+            data: {'qr_code': ?qrCode, 'member_id': ?memberId, 'checked_in_at': ?at?.toUtc().toIso8601String()},
+            options: options);
         if (res.statusCode == 422 && res.data?['member'] == null && res.data?['errors'] != null) {
           throw ValidationFailure(res.data!['message'] as String? ?? 'Check the details and try again.');
         }
         return CheckInResult.fromJson(res.data!);
       });
+
+  /// Members with a current membership, each with the sha256 of their QR
+  /// code: what the desk checks scans against with no connection.
+  Future<List<OfflineMember>> offlineList() async {
+    final json = await _get('/staff/checkins/offline-list');
+    return [for (final m in json['members'] as List) OfflineMember.fromJson(m as Map<String, dynamic>)];
+  }
 
   Future<({int count, List<TodayCheckIn> checkIns})> todayCheckIns() async {
     final json = await _get('/staff/checkins/today');

@@ -7,6 +7,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_controller.dart';
 import 'features/auth/state/session_controller.dart';
+import 'features/desk/offline_desk.dart';
 import 'features/notifications/notifications_controller.dart';
 
 class ZoeziStaffApp extends ConsumerWidget {
@@ -19,6 +20,7 @@ class ZoeziStaffApp extends ConsumerWidget {
     // Personal phones only: the front-desk device would show one person's
     // alerts to whoever is at the desk.
     if (session is SignedIn && !shared) ref.watch(notificationsControllerProvider);
+    if (session is SignedIn && canCheckInOffline(session.staff)) ref.watch(offlineDeskProvider);
 
     return MaterialApp.router(
       title: 'ZoeziDesk Staff',

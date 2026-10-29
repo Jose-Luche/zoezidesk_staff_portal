@@ -110,7 +110,7 @@ class _NotificationsTile extends ConsumerWidget {
       SwitchListTile(
         secondary: const Icon(Icons.notifications_rounded),
         title: const Text('App notifications'),
-        subtitle: const Text('Front-desk PIN lockouts and other alerts'),
+        subtitle: const Text('Class changes, the evening summary and PIN lockouts'),
         value: status != NotificationStatus.off,
         onChanged: (v) => ref.read(notificationsControllerProvider.notifier).setEnabled(v),
       ),

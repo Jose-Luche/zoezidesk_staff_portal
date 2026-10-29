@@ -25,6 +25,18 @@ class MemberCard {
             : CardMembership.fromJson(json['membership'] as Map<String, dynamic>),
       );
 
+  /// For the offline list kept on the device.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'initials': initials,
+        'member_number': memberNumber,
+        'phone': phone,
+        'status': status,
+        'photo_url': photoUrl,
+        'membership': membership?.toJson(),
+      };
+
   final int id;
   final String name;
   final String initials;
@@ -47,6 +59,13 @@ class CardMembership {
         daysLeft: json['days_left'] as int,
         current: json['current'] as bool,
       );
+
+  Map<String, dynamic> toJson() => {
+        'plan': plan,
+        'expires_at': '${expiresAt.year}-${expiresAt.month.toString().padLeft(2, '0')}-${expiresAt.day.toString().padLeft(2, '0')}',
+        'days_left': daysLeft,
+        'current': current,
+      };
 
   final String? plan;
   final DateTime expiresAt;
@@ -135,6 +154,19 @@ class CheckInResult {
   final bool duplicate;
   final String message;
   final MemberCard? member;
+}
+
+/// A member card from the offline list, with the hash of their QR code.
+class OfflineMember {
+  const OfflineMember({required this.qrHash, required this.card});
+
+  factory OfflineMember.fromJson(Map<String, dynamic> json) =>
+      OfflineMember(qrHash: json['qr_hash'] as String, card: MemberCard.fromJson(json));
+
+  Map<String, dynamic> toJson() => {...card.toJson(), 'qr_hash': qrHash};
+
+  final String qrHash;
+  final MemberCard card;
 }
 
 class TodayCheckIn {

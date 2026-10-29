@@ -7,13 +7,16 @@ import 'package:intl/intl.dart';
 
 import '../../core/router/routes.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../shared/widgets/app_badge.dart';
 import '../../shared/widgets/async_view.dart';
+import '../../shared/widgets/info_banner.dart';
 import '../../shared/widgets/member_tile.dart';
 import '../../shared/widgets/skeleton.dart';
 import '../../shared/widgets/state_message.dart';
 import '../auth/state/session_controller.dart';
 import 'desk_providers.dart';
 import 'member_actions.dart';
+import 'offline_desk.dart';
 
 /// The front desk: scan first, then find a member by name, phone or number
 /// to check them in or take a payment.
@@ -86,6 +89,7 @@ class _DeskScreenState extends ConsumerState<DeskScreen> {
                 label: Text('Scan member QR', style: text.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onPrimary)),
               ),
             ),
+            if (ref.exists(offlineDeskProvider)) const _OfflineStatus(),
             // Walk-in enquiries need the CRM in the gym's plan.
             if (staff.can('leads.capture') && staff.hasCrm)
               Padding(
@@ -177,6 +181,45 @@ class _DeskScreenState extends ConsumerState<DeskScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Check-ins saved with no connection: how many are waiting, and any the
+/// server refused once they were sent (someone was let in who shouldn't
+/// have been, so staff should follow up).
+class _OfflineStatus extends ConsumerWidget {
+  const _OfflineStatus();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final desk = ref.watch(offlineDeskProvider);
+    final waiting = desk.pending.length;
+    if (waiting == 0 && desk.refused.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpace.md, 0, AppSpace.md, AppSpace.md),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (waiting > 0)
+          InfoBanner(
+            tone: BadgeTone.warning,
+            icon: Icons.cloud_off_rounded,
+            message: waiting == 1
+                ? '1 check-in saved offline. It is sent when the connection is back.'
+                : '$waiting check-ins saved offline. They are sent when the connection is back.',
+            actionLabel: 'Send now',
+            onAction: () => ref.read(offlineDeskProvider.notifier).send(),
+          ),
+        if (waiting > 0 && desk.refused.isNotEmpty) const SizedBox(height: AppSpace.sm),
+        if (desk.refused.isNotEmpty)
+          InfoBanner(
+            tone: BadgeTone.danger,
+            message: 'Refused when sent: '
+                '${desk.refused.map((r) => '${r.name} at ${DateFormat.Hm().format(r.at.toLocal())} (${r.message})').join('; ')}',
+            actionLabel: 'Dismiss',
+            onAction: () => ref.read(offlineDeskProvider.notifier).dismissRefused(),
+          ),
+      ]),
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../core/errors/app_failure.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../data/api/staff_api.dart';
@@ -14,6 +15,7 @@ import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/member_tile.dart';
 import '../auth/state/session_controller.dart';
 import 'desk_providers.dart';
+import 'offline_desk.dart';
 
 /// Scan after scan: each code checks a member in and shows the result, then
 /// the camera is ready for the next one.
@@ -30,6 +32,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   final _camera = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
   CheckInResult? _result;
   String? _error;
+
+  /// Offline, and the code wasn't on the offline list: staff may still let
+  /// the member in and record it.
+  String? _unverifiedCode;
   bool _busy = false;
   String? _lastCode;
   Timer? _clear;
@@ -56,19 +62,71 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       setState(() {
         _result = result;
         _error = null;
+        _unverifiedCode = null;
       });
+      // Back online: send anything checked in while it was down.
+      if (ref.exists(offlineDeskProvider)) ref.read(offlineDeskProvider.notifier).send();
     } catch (e) {
-      HapticFeedback.heavyImpact();
-      setState(() {
-        _result = null;
-        _error = failureMessage(e);
-      });
+      final offline = e is NetworkFailure || e is TimeoutFailure;
+      if (offline && ref.exists(offlineDeskProvider)) {
+        await _checkInOffline(code);
+      } else {
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _result = null;
+          _error = failureMessage(e);
+          _unverifiedCode = null;
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
     _clear?.cancel();
     _clear = Timer(_showResultFor, () {
       if (mounted) setState(() => _lastCode = null);
+    });
+  }
+
+  Future<void> _checkInOffline(String code) async {
+    final desk = ref.read(offlineDeskProvider.notifier);
+    final member = desk.match(code);
+    if (member != null) {
+      await desk.record(code, name: member.name);
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _result = CheckInResult(
+          success: true,
+          duplicate: false,
+          message: 'Welcome, ${member.name}! Saved offline; it will be sent when the connection is back.',
+          member: member,
+        );
+        _error = null;
+        _unverifiedCode = null;
+      });
+    } else {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _result = null;
+        _error = "You're offline and this code isn't on the saved member list (no current membership, "
+            'or they joined since it was saved).';
+        _unverifiedCode = code;
+      });
+    }
+  }
+
+  Future<void> _letInAnyway() async {
+    final code = _unverifiedCode;
+    if (code == null) return;
+    await ref.read(offlineDeskProvider.notifier).record(code);
+    if (!mounted) return;
+    setState(() {
+      _error = null;
+      _unverifiedCode = null;
+      _result = const CheckInResult(
+        success: true,
+        duplicate: false,
+        message: 'Recorded offline. The server will check the membership when it is sent.',
+      );
     });
   }
 
@@ -122,6 +180,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                     Text('Point the camera at the member\'s QR code.', textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleMedium),
                   if (_error != null) _Outcome(ok: false, message: _error!),
+                  if (_unverifiedCode != null)
+                    OutlinedButton.icon(
+                      onPressed: _letInAnyway,
+                      icon: const Icon(Icons.how_to_reg_rounded),
+                      label: const Text('Let in and record'),
+                    ),
                   if (result != null) ...[
                     _Outcome(ok: ok, message: result.message),
                     if (result.member != null) MemberTile(member: result.member!),

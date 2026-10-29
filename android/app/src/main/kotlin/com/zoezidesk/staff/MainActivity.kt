@@ -16,7 +16,7 @@ class MainActivity : FlutterActivity() {
                 "general",
                 "Gym alerts",
                 NotificationManager.IMPORTANCE_HIGH,
-            ).apply { description = "Front-desk PIN lockouts and other alerts for staff" }
+            ).apply { description = "Class changes, the evening summary and front-desk PIN lockouts" }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }

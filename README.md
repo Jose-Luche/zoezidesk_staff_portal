@@ -36,8 +36,19 @@ both. Fill the `FIREBASE_*` values in `env/dev.json` from that project's
 notifications.
 
 Only personal sign-ins register for notifications, never the front-desk device. Staff
-turn them off under More → App notifications. Sent today: a front-desk PIN locked after
-too many wrong tries, to the gym's owners and managers and to the staff member.
+turn them off under More → App notifications. What is sent, and to whom, is listed in the
+backend's `STAFF_APP_API.md` (late class bookings to the trainer, the owners' evening
+summary, PIN lockouts).
+
+## Offline check-ins
+
+The front-desk device (and staff who may browse all members) keeps a list of members with
+a current membership, refreshed every half hour; QR codes are saved only as hashes. With no
+connection, a scan is matched against it and the member is let in; a code that isn't on the
+list can still be let in with *Let in and record*. The check-ins wait in secure storage
+(they survive the device locking) and are sent with the time the member came as soon as the
+server answers. The desk shows how many are waiting, and any the server refused once sent.
+Signing out on a personal phone sends what it can, then deletes the list and the queue.
 
 ## Signing in
 
