@@ -14,6 +14,7 @@ import '../../shared/widgets/member_tile.dart';
 import '../../shared/widgets/skeleton.dart';
 import '../../shared/widgets/state_message.dart';
 import '../desk/member_actions.dart';
+import '../payments/payment_actions.dart';
 import 'member_providers.dart';
 
 /// A member's profile. Training and notes only for staff who may see them
@@ -66,7 +67,7 @@ class MemberScreen extends ConsumerWidget {
               _Details(profile: p),
               if (p.canViewTraining) _Training(memberId: memberId),
               if (p.canManageNotes) _Notes(memberId: memberId),
-              if (p.payments != null) _Payments(payments: p.payments!),
+              if (p.payments != null) _Payments(payments: p.payments!, canVoid: p.canVoidPayments),
             ],
           ),
         ),
@@ -301,9 +302,10 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
 }
 
 class _Payments extends StatelessWidget {
-  const _Payments({required this.payments});
+  const _Payments({required this.payments, required this.canVoid});
 
   final List<PaymentRecord> payments;
+  final bool canVoid;
 
   @override
   Widget build(BuildContext context) {
@@ -312,6 +314,7 @@ class _Payments extends StatelessWidget {
       for (final p in payments)
         ListTile(
           contentPadding: EdgeInsets.zero,
+          onTap: () => showPaymentActions(context, p, canVoid: canVoid),
           title: Text('${formatKes(p.amount)} · ${p.plan ?? 'Payment'}'),
           subtitle: Text([
             if (p.paidAt != null) formatDate(p.paidAt!),

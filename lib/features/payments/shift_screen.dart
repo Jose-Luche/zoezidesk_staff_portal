@@ -10,6 +10,7 @@ import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/info_banner.dart';
 import '../../shared/widgets/state_message.dart';
 import '../auth/state/session_controller.dart';
+import 'payment_actions.dart';
 import 'payment_providers.dart';
 
 /// End-of-shift cash-up. Owners and managers can open anyone's.
@@ -98,7 +99,7 @@ class ShiftScreen extends ConsumerWidget {
               if (s.payments.isEmpty)
                 const StateMessage.empty(title: 'No payments', message: 'Payments taken on this day show here.')
               else
-                for (final p in s.payments) _PaymentTile(payment: p),
+                for (final p in s.payments) _PaymentTile(payment: p, canVoid: staff.can('payments.void')),
             ],
           ),
         ),
@@ -108,15 +109,17 @@ class ShiftScreen extends ConsumerWidget {
 }
 
 class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({required this.payment});
+  const _PaymentTile({required this.payment, required this.canVoid});
 
   final PaymentRecord payment;
+  final bool canVoid;
 
   @override
   Widget build(BuildContext context) {
     final voided = payment.status == 'voided';
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      onTap: () => showPaymentActions(context, payment, canVoid: canVoid),
       title: Text(payment.member ?? 'Member'),
       subtitle: Text([
         if (payment.paidAt != null) DateFormat.Hm().format(payment.paidAt!),

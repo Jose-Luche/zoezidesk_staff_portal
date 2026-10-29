@@ -215,6 +215,18 @@ class StaffApi {
     );
   }
 
+  /// A signed link to the PDF receipt, valid for a week without signing in.
+  Future<String> receiptLink(int paymentId) => guardRequest(() async {
+        final res = await _dio.post<Map<String, dynamic>>('/staff/payments/$paymentId/receipt-link');
+        return res.data!['url'] as String;
+      });
+
+  /// Owners and managers: voids a completed payment.
+  Future<PaymentRecord> voidPayment(int paymentId, String reason) => guardRequest(() async {
+        final res = await _dio.post<Map<String, dynamic>>('/staff/payments/$paymentId/void', data: {'reason': reason});
+        return PaymentRecord.fromJson(res.data!['payment'] as Map<String, dynamic>);
+      });
+
   Future<Shift> shift({DateTime? date, int? staffId}) async => Shift.fromJson(await _get('/staff/payments/shift', {
         if (date != null) 'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
         'staff_id': ?staffId,

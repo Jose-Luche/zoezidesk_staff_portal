@@ -130,4 +130,24 @@ void main() {
     expect(adapter.requests.single.path, '/staff/classes/5/bookings');
     expect(adapter.requests.single.headers[RetryInterceptor.idempotencyHeader], isNotEmpty);
   });
+
+  test('a receipt link is fetched for opening or sending', () async {
+    adapter.reply(200, {'success': true, 'url': 'https://api.test/member/receipts/9?signature=abc', 'expires_at': '2026-11-05T10:00:00+03:00'});
+
+    expect(await api.receiptLink(9), 'https://api.test/member/receipts/9?signature=abc');
+    expect(adapter.requests.single.path, '/staff/payments/9/receipt-link');
+  });
+
+  test('voiding sends the reason and returns the voided payment', () async {
+    adapter.reply(200, {
+      'success': true,
+      'payment': {'id': 9, 'amount': 3000, 'method': 'cash', 'status': 'voided', 'void_reason': 'Recorded twice', 'member_phone': '254711000001'},
+    });
+
+    final p = await api.voidPayment(9, 'Recorded twice');
+
+    expect(p.status, 'voided');
+    expect(p.memberPhone, '254711000001');
+    expect(adapter.requests.single.data, {'reason': 'Recorded twice'});
+  });
 }

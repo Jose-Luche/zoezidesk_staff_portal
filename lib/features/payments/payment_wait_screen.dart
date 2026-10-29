@@ -10,6 +10,7 @@ import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../shared/widgets/state_message.dart';
 import '../desk/desk_providers.dart';
+import 'payment_actions.dart';
 
 /// Waits for the member to approve an M-Pesa request on their phone.
 class PaymentWaitScreen extends ConsumerStatefulWidget {
@@ -70,13 +71,23 @@ class _PaymentWaitScreenState extends ConsumerState<PaymentWaitScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('M-Pesa payment')),
       body: switch (payment?.status) {
-        'completed' => StateMessage(
-            icon: Icons.check_circle_rounded,
-            title: '${formatKes(payment!.amount)} received',
-            message: '${payment.member ?? 'The member'}\'s ${payment.plan ?? ''} membership is active.'
-                '${payment.reference == null ? '' : ' Receipt ${payment.reference}.'}',
-            actionLabel: 'Done',
-            onAction: () => context.pop(),
+        'completed' => Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              StateMessage(
+                icon: Icons.check_circle_rounded,
+                title: '${formatKes(payment!.amount)} received',
+                message: '${payment.member ?? 'The member'}\'s ${payment.plan ?? ''} membership is active.'
+                    '${payment.reference == null ? '' : ' Receipt ${payment.reference}.'}',
+                actionLabel: 'Done',
+                onAction: () => context.pop(),
+              ),
+              TextButton.icon(
+                onPressed: () => sendReceipt(context, ref, payment),
+                icon: const Icon(Icons.chat_rounded),
+                label: const Text('Send receipt on WhatsApp'),
+              ),
+            ],
           ),
         'failed' || 'cancelled' => StateMessage(
             icon: Icons.cancel_rounded,

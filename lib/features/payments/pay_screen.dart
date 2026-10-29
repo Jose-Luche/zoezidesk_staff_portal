@@ -12,6 +12,7 @@ import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/member_tile.dart';
 import '../auth/widgets/auth_scaffold.dart';
 import '../desk/desk_providers.dart';
+import 'payment_actions.dart';
 import 'payment_providers.dart';
 
 /// Take a payment for a member: pick the plan, then cash, bank or M-Pesa.
@@ -105,7 +106,13 @@ class _PayFormState extends ConsumerState<_PayForm> {
           icon: Icon(Icons.check_circle_rounded, color: context.palette.success, size: AppSpace.xxl),
           title: Text('${formatKes(payment.amount)} received'),
           content: Text('${widget.member.name}\'s ${plan.name} membership is active.'),
-          actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
+          actions: [
+            TextButton(
+              onPressed: () => sendReceipt(context, ref, payment),
+              child: const Text('Send receipt'),
+            ),
+            FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done')),
+          ],
         ),
       );
       if (mounted) context.pop();

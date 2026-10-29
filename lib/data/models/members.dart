@@ -64,6 +64,7 @@ class MemberProfile {
     required this.payments,
     required this.canEdit,
     required this.canTakePayment,
+    required this.canVoidPayments,
     required this.canViewTraining,
     required this.canManageNotes,
   });
@@ -81,6 +82,7 @@ class MemberProfile {
       payments: payments == null ? null : [for (final p in payments) PaymentRecord.fromJson(p as Map<String, dynamic>)],
       canEdit: can['edit'] as bool? ?? false,
       canTakePayment: can['take_payment'] as bool? ?? false,
+      canVoidPayments: can['void_payments'] as bool? ?? false,
       canViewTraining: can['view_training'] as bool? ?? false,
       canManageNotes: can['manage_notes'] as bool? ?? false,
     );
@@ -97,6 +99,7 @@ class MemberProfile {
   final List<PaymentRecord>? payments;
   final bool canEdit;
   final bool canTakePayment;
+  final bool canVoidPayments;
   final bool canViewTraining;
   final bool canManageNotes;
 }
@@ -157,6 +160,7 @@ class PaymentRecord {
     required this.method,
     required this.status,
     this.member,
+    this.memberPhone,
     this.plan,
     this.reference,
     this.paidAt,
@@ -171,6 +175,7 @@ class PaymentRecord {
         method: json['method'] as String,
         status: json['status'] as String,
         member: json['member'] as String?,
+        memberPhone: json['member_phone'] as String?,
         plan: json['plan'] as String?,
         reference: json['reference'] as String?,
         paidAt: json['paid_at'] == null ? null : DateTime.parse(json['paid_at'] as String).toLocal(),
@@ -186,6 +191,7 @@ class PaymentRecord {
   /// pending, completed, failed, cancelled or voided.
   final String status;
   final String? member;
+  final String? memberPhone;
   final String? plan;
   final String? reference;
   final DateTime? paidAt;
