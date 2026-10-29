@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_tokens.dart';
@@ -30,17 +32,25 @@ class MemberAvatar extends StatelessWidget {
     final url = photoUrl;
     if (url == null) return fallback;
 
-    return ClipOval(
-      child: Image.network(
-        url,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        // Decoded at the size shown, not the camera's.
-        cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
-        semanticLabel: 'Photo',
-        errorBuilder: (_, _, _) => fallback,
-        loadingBuilder: (_, child, progress) => progress == null ? child : fallback,
+    // Its size, but square whatever room it is given (a ListTile caps the
+    // leading widget's height), so a photo is never an oval.
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: size, maxHeight: size),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: ClipOval(
+          child: Image.network(
+            url,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            // Decoded at the size shown, not the camera's.
+            cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+            semanticLabel: 'Photo',
+            errorBuilder: (_, _, _) => fallback,
+            loadingBuilder: (_, child, progress) => progress == null ? child : fallback,
+          ),
+        ),
       ),
     );
   }
@@ -85,7 +95,8 @@ class MemberTile extends StatelessWidget {
     final plan = member.membership?.plan;
     return ListTile(
       onTap: onTap,
-      minTileHeight: AppSizes.minTouch + AppSpace.md,
+      // Room for a large avatar (the tile caps the leading widget's height).
+      minTileHeight: max(AppSizes.minTouch + AppSpace.md, avatarSize + AppSpace.md),
       leading: MemberAvatar(initials: member.initials, photoUrl: member.photoUrl, size: avatarSize),
       title: Text(member.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Padding(
