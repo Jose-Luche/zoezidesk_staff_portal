@@ -150,4 +150,35 @@ void main() {
     expect(p.memberPhone, '254711000001');
     expect(adapter.requests.single.data, {'reason': 'Recorded twice'});
   });
+
+  Map<String, dynamic> lead({String stage = 'new'}) => {
+        'id': 4, 'name': 'Kevin Walk-in', 'phone': '254722111222', 'stage': stage, 'stage_label': 'New',
+        'source': 'walk_in', 'interested_in_plan': 'Monthly', 'next_follow_up_at': null, 'overdue': false,
+        'created_at': '2026-10-30T09:00:00+03:00',
+      };
+
+  test('recording an enquiry tells saved, already a member and enquired before apart', () async {
+    adapter
+      ..reply(201, {'success': true, 'welcome_sent': true, 'lead': lead()})
+      ..reply(409, {'success': false, 'code': 'already_member', 'message': 'Jane is already a member.', 'member_id': 12})
+      ..reply(409, {'success': false, 'code': 'existing_enquiry', 'message': 'Kevin already enquired.', 'lead': lead()});
+
+    final saved = await api.recordEnquiry({'name': 'Kevin', 'phone': '254722111222'});
+    final member = await api.recordEnquiry({'name': 'Jane', 'phone': '254711000001'});
+    final again = await api.recordEnquiry({'name': 'Kevin', 'phone': '254722111222'});
+
+    expect((saved as EnquiryRecorded).welcomeSent, isTrue);
+    expect((member as AlreadyAMember).memberId, 12);
+    expect((again as AlreadyEnquired).enquiry.id, 4);
+    expect(adapter.requests.first.headers[RetryInterceptor.idempotencyHeader], isNotEmpty);
+  });
+
+  test('a follow-up sends the outcome and the next call day', () async {
+    adapter.reply(200, {'success': true, 'lead': lead(stage: 'interested')});
+
+    final e = await api.followUpEnquiry(4, outcome: 'interested', nextOn: DateTime(2026, 11, 2));
+
+    expect(e.stage, 'interested');
+    expect(adapter.requests.single.data, {'outcome': 'interested', 'next_on': '2026-11-02'});
+  });
 }

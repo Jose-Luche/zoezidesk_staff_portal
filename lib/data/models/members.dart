@@ -298,3 +298,45 @@ class FollowUp {
   /// Days until the end (negative once it has ended).
   final int days;
 }
+
+/// A walk-in enquiry (a lead in the web CRM).
+class Enquiry {
+  const Enquiry({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.stage,
+    required this.stageLabel,
+    required this.createdAt,
+    required this.overdue,
+    this.interestedIn,
+    this.notes,
+    this.nextFollowUpAt,
+  });
+
+  factory Enquiry.fromJson(Map<String, dynamic> json) => Enquiry(
+        id: json['id'] as int,
+        name: json['name'] as String,
+        phone: json['phone'] as String,
+        stage: json['stage'] as String,
+        stageLabel: json['stage_label'] as String? ?? '',
+        interestedIn: json['interested_in_plan'] as String?,
+        notes: json['notes'] as String?,
+        nextFollowUpAt: json['next_follow_up_at'] == null ? null : DateTime.parse(json['next_follow_up_at'] as String).toLocal(),
+        overdue: json['overdue'] as bool? ?? false,
+        createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      );
+
+  final int id;
+  final String name;
+  final String phone;
+
+  /// new, contacted, interested or trial while open.
+  final String stage;
+  final String stageLabel;
+  final String? interestedIn;
+  final String? notes;
+  final DateTime? nextFollowUpAt;
+  final bool overdue;
+  final DateTime createdAt;
+}

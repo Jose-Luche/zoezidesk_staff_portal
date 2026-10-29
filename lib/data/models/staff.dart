@@ -13,6 +13,7 @@ class StaffProfile {
     required this.sharedDevice,
     required this.permissions,
     required this.browseAllMembers,
+    this.hasCrm = false,
   });
 
   factory StaffProfile.fromJson(Map<String, dynamic> json) => StaffProfile(
@@ -26,6 +27,7 @@ class StaffProfile {
         sharedDevice: json['shared_device'] as bool? ?? false,
         permissions: {for (final p in json['permissions'] as List) p as String},
         browseAllMembers: json['browse_all_members'] as bool? ?? false,
+        hasCrm: (json['features'] as Map?)?['crm'] as bool? ?? false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -39,6 +41,7 @@ class StaffProfile {
         'shared_device': sharedDevice,
         'permissions': permissions.toList(),
         'browse_all_members': browseAllMembers,
+        'features': {'crm': hasCrm},
       };
 
   final int id;
@@ -55,6 +58,9 @@ class StaffProfile {
 
   /// False for trainers (unless also a manager): they see only their clients.
   final bool browseAllMembers;
+
+  /// The gym's plan includes the CRM (walk-in enquiries).
+  final bool hasCrm;
 
   /// Whether any of [names] is allowed in this session. The server checks
   /// every request anyway; this only decides what to show.

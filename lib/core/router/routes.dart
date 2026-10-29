@@ -22,6 +22,8 @@ abstract final class Routes {
   static String member(int id) => '/members/$id';
   static String editMember(int id) => '/members/$id/edit';
   static const followUps = '/follow-ups';
+  static const enquiries = '/enquiries';
+  static const newEnquiry = '/enquiries/new';
   static String pay(int memberId) => '/members/$memberId/pay';
   static String payment(int paymentId) => '/payments/$paymentId';
   static String roster(int classId) => '/classes/$classId/roster';

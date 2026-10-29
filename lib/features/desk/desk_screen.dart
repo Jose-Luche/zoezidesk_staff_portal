@@ -86,6 +86,28 @@ class _DeskScreenState extends ConsumerState<DeskScreen> {
                 label: Text('Scan member QR', style: text.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onPrimary)),
               ),
             ),
+            // Walk-in enquiries need the CRM in the gym's plan.
+            if (staff.can('leads.capture') && staff.hasCrm)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpace.md, 0, AppSpace.md, AppSpace.md),
+                child: Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push(Routes.newEnquiry),
+                      icon: const Icon(Icons.add_comment_rounded),
+                      label: const Text('New enquiry'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push(Routes.enquiries),
+                      icon: const Icon(Icons.forum_rounded),
+                      label: const Text('Enquiries'),
+                    ),
+                  ),
+                ]),
+              ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
               child: TextField(

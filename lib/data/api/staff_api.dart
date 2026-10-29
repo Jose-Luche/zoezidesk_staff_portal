@@ -27,6 +27,32 @@ class PossibleDuplicates extends RegisterResult {
   final List<PossibleDuplicate> duplicates;
 }
 
+/// Recording an enquiry: saved, or the phone already belongs to someone.
+sealed class EnquiryResult {
+  const EnquiryResult(this.message);
+
+  final String message;
+}
+
+class EnquiryRecorded extends EnquiryResult {
+  const EnquiryRecorded(this.enquiry, {required this.welcomeSent}) : super('');
+
+  final Enquiry enquiry;
+  final bool welcomeSent;
+}
+
+class AlreadyAMember extends EnquiryResult {
+  const AlreadyAMember(super.message, this.memberId);
+
+  final int memberId;
+}
+
+class AlreadyEnquired extends EnquiryResult {
+  const AlreadyEnquired(super.message, this.enquiry);
+
+  final Enquiry enquiry;
+}
+
 /// `/api/staff`, documented in the backend's STAFF_APP_API.md. Every method
 /// throws [AppFailure].
 class StaffApi {
@@ -231,6 +257,47 @@ class StaffApi {
         if (date != null) 'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
         'staff_id': ?staffId,
       }));
+
+  // ── Walk-in enquiries ─────────────────────────────────────────────
+
+  Future<List<Enquiry>> enquiries() async {
+    final json = await _get('/staff/leads');
+    return [for (final l in json['leads'] as List) Enquiry.fromJson(l as Map<String, dynamic>)];
+  }
+
+  Future<EnquiryResult> recordEnquiry(Map<String, dynamic> fields, {bool confirm = false}) => guardRequest(() async {
+        final options = _once().copyWith(validateStatus: (s) => s != null && (s < 300 || s == 409));
+        final res = await _dio.post<Map<String, dynamic>>('/staff/leads',
+            data: {...fields, if (confirm) 'confirm': true}, options: options);
+        final json = res.data!;
+        return switch ((res.statusCode, json['code'])) {
+          (409, 'already_member') => AlreadyAMember(json['message'] as String, json['member_id'] as int),
+          (409, _) => AlreadyEnquired(json['message'] as String, Enquiry.fromJson(json['lead'] as Map<String, dynamic>)),
+          _ => EnquiryRecorded(Enquiry.fromJson(json['lead'] as Map<String, dynamic>),
+              welcomeSent: json['welcome_sent'] as bool? ?? false),
+        };
+      });
+
+  /// [outcome]: contacted, interested or lost.
+  Future<Enquiry> followUpEnquiry(int id, {required String outcome, String? note, DateTime? nextOn, String? lostReason}) =>
+      guardRequest(() async {
+        final res = await _dio.post<Map<String, dynamic>>('/staff/leads/$id/follow-up', data: {
+          'outcome': outcome,
+          'note': ?note,
+          if (nextOn != null) 'next_on': _day(nextOn),
+          'lost_reason': ?lostReason,
+        });
+        return Enquiry.fromJson(res.data!['lead'] as Map<String, dynamic>);
+      });
+
+  /// Registers the enquiry as a member.
+  Future<MemberCard> convertEnquiry(int id) => guardRequest(() async {
+        final res = await _dio.post<Map<String, dynamic>>('/staff/leads/$id/convert', options: _once());
+        return MemberCard.fromJson(res.data!['member'] as Map<String, dynamic>);
+      });
+
+  static String _day(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   // ── Classes ───────────────────────────────────────────────────────
 

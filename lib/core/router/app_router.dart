@@ -9,6 +9,8 @@ import '../../features/auth/state/session_controller.dart';
 import '../../features/classes/classes_screen.dart';
 import '../../features/clients/clients_screen.dart';
 import '../../features/design_gallery/design_gallery_screen.dart';
+import '../../features/enquiries/enquiries_screen.dart';
+import '../../features/enquiries/new_enquiry_screen.dart';
 import '../../features/desk/desk_screen.dart';
 import '../../features/desk/follow_ups_screen.dart';
 import '../../features/desk/scan_screen.dart';
@@ -84,6 +86,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => EditMemberScreen(memberId: int.parse(state.pathParameters['id']!)),
       ),
       GoRoute(path: Routes.followUps, builder: (_, _) => const FollowUpsScreen()),
+      GoRoute(
+        path: Routes.enquiries,
+        builder: (_, _) => const EnquiriesScreen(),
+        routes: [GoRoute(path: 'new', builder: (_, _) => const NewEnquiryScreen())],
+      ),
       GoRoute(
         path: '/members/:id/pay',
         builder: (_, state) => PayScreen(memberId: int.parse(state.pathParameters['id']!)),
