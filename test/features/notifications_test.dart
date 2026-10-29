@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zoezidesk_staff/core/notifications/push_messaging.dart';
@@ -126,5 +127,29 @@ void main() {
     expect(const PushMessage(url: '/desk').route, Routes.desk);
     expect(const PushMessage(url: '/').route, Routes.home);
     expect(const PushMessage(url: '').route, Routes.home);
+  });
+
+  testWidgets('signing out clears a banner left on screen', (tester) async {
+    final c = ProviderContainer(overrides: [
+      pushMessagingProvider.overrideWithValue(push),
+      pushDevicesApiProvider.overrideWithValue(api),
+      devicePreferencesProvider.overrideWithValue(DevicePreferences(store)),
+    ]);
+    addTearDown(c.dispose);
+    final key = c.read(scaffoldMessengerKeyProvider);
+    await tester.pumpWidget(MaterialApp(scaffoldMessengerKey: key, home: const Scaffold()));
+    final watching = c.listen(notificationsControllerProvider, (_, _) {});
+    await tester.pump();
+
+    key.currentState!.showSnackBar(SnackBar(
+      content: const Text('Today at Test Gym'),
+      action: SnackBarAction(label: 'View', onPressed: () {}),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Today at Test Gym'), findsOneWidget);
+
+    watching.close(); // the app stops watching it when signed out
+    await tester.pumpAndSettle();
+    expect(find.text('Today at Test Gym'), findsNothing);
   });
 }

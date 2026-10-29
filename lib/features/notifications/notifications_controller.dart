@@ -41,10 +41,14 @@ class NotificationsController extends Notifier<NotificationStatus> {
 
   @override
   NotificationStatus build() {
+    final messengerKey = ref.read(scaffoldMessengerKeyProvider);
     ref.onDispose(() {
       for (final s in _subscriptions) {
         s.cancel();
       }
+      // Signed out: one person's alert must not stay on screen for the next
+      // (the phone may become the front-desk device).
+      messengerKey.currentState?.clearSnackBars();
     });
     if (!ref.watch(pushMessagingProvider).available) return NotificationStatus.unavailable;
     Future.microtask(_start);
@@ -138,6 +142,9 @@ class NotificationsController extends Notifier<NotificationStatus> {
     messenger.showSnackBar(SnackBar(
       content: Text(text),
       action: SnackBarAction(label: 'View', onPressed: () => _open(message)),
+      // With an action a SnackBar stays until dismissed; this one goes by itself.
+      persist: false,
+      duration: const Duration(seconds: 6),
     ));
   }
 }
