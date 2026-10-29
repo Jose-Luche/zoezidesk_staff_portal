@@ -86,9 +86,46 @@ flutter analyze
 flutter test
 ```
 
+## Build a release
+
+`env/prod.json` holds `API_BASE_URL` (`https://gym.zoezidesk.com/api`: it must be HTTPS) and
+the `FIREBASE_*` values (see *Notifications*). Then:
+
+```sh
+flutter build apk --release --dart-define-from-file=env/prod.json
+```
+
+Raise `version:` in `pubspec.yaml` (both parts, e.g. `1.0.1+2`) for every build you hand out:
+Android only installs an update with a higher version code. Share the one universal
+`app-release.apk` (not `--split-per-abi` APKs, whose version codes would block later universal
+ones), with its SHA-256 checksum so the gym can tell it is yours. Staff get updates only when
+you send them a new APK.
+
+### Signing
+
+As in the members app: release builds are signed with the key in `android/key.properties`
+(gitignored, as are `*.jks` files), and fall back to the debug key with a Gradle warning when
+it's missing. Use a key of its own for this app, made once and kept safe (a password manager
+plus an offline backup): every update must be signed with the same key, or staff have to
+uninstall the app to install the new one, losing any unsent offline check-ins.
+
+```sh
+keytool -genkeypair -v -keystore ~/zoezidesk-staff-upload.jks -storetype PKCS12 -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+`android/key.properties`:
+
+```properties
+storeFile=C:/Users/you/zoezidesk-staff-upload.jks
+storePassword=...
+keyAlias=upload
+keyPassword=...
+```
+
+Deploying the backend for the app (migrations, roles, scheduler, Firebase) is in the backend's
+`STAFF_APP_DEPLOY.md`.
+
 ## Not done yet
 
-- Receipt PDFs: the API serves them (`GET /api/staff/payments/{id}/receipt`); the app
-  doesn't open them yet.
 - Launcher icons: `python tool/make_icons.py` draws them from the logo mark, as in the
   members app (consider a "Staff" variant so the two apps are easy to tell apart).
