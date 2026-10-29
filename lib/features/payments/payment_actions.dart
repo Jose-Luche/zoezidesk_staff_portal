@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/url_opener.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../shared/widgets/async_view.dart';
+import '../../shared/widgets/cards.dart';
+import '../../shared/widgets/controls.dart';
+import '../../shared/widgets/sheet.dart';
+import '../../shared/widgets/tag.dart';
+import '../../shared/widgets/toast.dart';
 import '../auth/state/session_controller.dart';
-import '../auth/widgets/auth_scaffold.dart';
 import '../desk/desk_providers.dart';
 
 /// A payment's receipt and, for owners and managers, voiding it.
 Future<void> showPaymentActions(BuildContext context, PaymentRecord payment, {bool canVoid = false}) =>
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (_) => _PaymentActions(payment: payment, canVoid: canVoid),
-    );
+    showAppSheet<void>(context, builder: (_) => _PaymentActions(payment: payment, canVoid: canVoid));
 
 /// Opens the receipt PDF in the phone's viewer.
 Future<void> openReceipt(BuildContext context, WidgetRef ref, int paymentId) async {
@@ -51,8 +51,7 @@ Future<void> sendReceipt(BuildContext context, WidgetRef ref, PaymentRecord paym
   }
 }
 
-void _say(BuildContext context, String message) =>
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+void _say(BuildContext context, String message) => showToast(context, message);
 
 class _PaymentActions extends ConsumerStatefulWidget {
   const _PaymentActions({required this.payment, required this.canVoid});
@@ -83,57 +82,45 @@ class _PaymentActionsState extends ConsumerState<_PaymentActions> {
   @override
   Widget build(BuildContext context) {
     final p = _payment;
-    final text = Theme.of(context).textTheme;
     final completed = p.status == 'completed';
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpace.md, 0, AppSpace.md, AppSpace.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(formatKes(p.amount), style: text.headlineMedium),
-            Text([
-              ?p.member,
-              ?p.plan,
-              p.methodLabel,
-              if (p.paidAt != null) formatDate(p.paidAt!),
-            ].join(' · ')),
-            if (p.reference != null) Text('Ref ${p.reference}', style: TextStyle(color: context.palette.textMuted)),
-            Text(p.recordedBy == null ? 'Paid by the member' : 'Taken by ${p.recordedBy}',
-                style: TextStyle(color: context.palette.textMuted)),
-            if (p.status == 'voided') ...[
-              const SizedBox(height: AppSpace.sm),
-              FormErrorText('Voided: ${p.voidReason ?? ''}'),
-            ],
-            const SizedBox(height: AppSpace.lg),
-            if (completed) ...[
-              FilledButton.icon(
-                onPressed: () => openReceipt(context, ref, p.id),
-                icon: const Icon(Icons.receipt_long_rounded),
-                label: const Text('Open receipt'),
-              ),
-              const SizedBox(height: AppSpace.sm),
-              OutlinedButton.icon(
-                onPressed: p.memberPhone == null ? null : () => sendReceipt(context, ref, p),
-                icon: const Icon(Icons.chat_rounded),
-                label: const Text('Send receipt on WhatsApp'),
-              ),
-            ],
-            if (completed && widget.canVoid) ...[
-              const SizedBox(height: AppSpace.sm),
-              TextButton.icon(
-                style: TextButton.styleFrom(foregroundColor: context.palette.danger),
-                onPressed: _void,
-                icon: const Icon(Icons.block_rounded),
-                label: const Text('Void payment'),
-              ),
-            ],
-          ],
-        ),
+    return SheetBody(children: [
+      SheetTitle(
+        formatKes(p.amount),
+        subtitle: [
+          ?p.member,
+          ?p.plan,
+          p.methodLabel,
+          if (p.paidAt != null) formatShortDate(p.paidAt!),
+          if (p.reference != null) 'Ref ${p.reference}',
+          p.recordedBy == null ? 'Paid by the member' : 'Taken by ${p.recordedBy}',
+        ].join(' · '),
       ),
-    );
+      if (p.status == 'voided') ...[
+        InfoCard(title: 'Voided', message: p.voidReason ?? 'No reason given.', tone: Tone.danger, icon: AppIcons.voided),
+        const SizedBox(height: AppSpace.lg),
+      ],
+      if (completed) ...[
+        FilledButton(onPressed: () => openReceipt(context, ref, p.id), child: const Text('Open receipt')),
+        const SizedBox(height: AppSpace.sm),
+        OutlinedButton.icon(
+          onPressed: p.memberPhone == null ? null : () => sendReceipt(context, ref, p),
+          icon: const Icon(AppIcons.whatsapp, size: AppIconSize.sm),
+          label: const Text('Send receipt on WhatsApp'),
+        ),
+      ],
+      if (completed && widget.canVoid) ...[
+        const SizedBox(height: AppSpace.sm),
+        Center(
+          child: TextButton.icon(
+            style: TextButton.styleFrom(foregroundColor: context.palette.danger.on),
+            onPressed: _void,
+            icon: const Icon(AppIcons.voided, size: AppIconSize.sm),
+            label: const Text('Void payment'),
+          ),
+        ),
+      ],
+    ]);
   }
 }
 
@@ -162,28 +149,28 @@ class _VoidDialogState extends State<_VoidDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return AlertDialog(
       title: const Text('Void this payment?'),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('It stops counting in revenue and cash-ups, and the membership it paid for is cancelled. '
             'Any money to give back is refunded outside ZoeziDesk.'),
-        const SizedBox(height: AppSpace.md),
-        TextField(
+        const SizedBox(height: AppSpace.lg),
+        AppField(
+          label: 'Reason',
           controller: _reason,
           autofocus: true,
           maxLength: 255,
-          decoration: InputDecoration(labelText: 'Reason', hintText: 'e.g. Recorded twice by mistake', errorText: _error),
+          hint: 'e.g. Recorded twice by mistake',
+          error: _error,
         ),
       ]),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Keep it')),
         FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: context.palette.danger,
-            foregroundColor: context.palette.background,
-          ),
+          style: FilledButton.styleFrom(backgroundColor: p.danger.on, foregroundColor: p.danger.fill),
           onPressed: _submit,
-          child: const Text('Void'),
+          child: const Text('Void payment'),
         ),
       ],
     );

@@ -12,30 +12,55 @@ void main() {
   List<String> tabs(StaffProfile staff) => [for (final t in tabsFor(staff)) t.path];
 
   group('tabs follow permissions', () {
-    test('receptionists get the front desk, members and classes', () {
-      expect(tabs(staffWith(receptionistPermissions)), [Routes.desk, Routes.members, Routes.classes, Routes.more]);
+    test('receptionists get home, members and classes', () {
+      expect(tabs(staffWith(receptionistPermissions)), [Routes.home, Routes.members, Routes.classes]);
     });
 
     test('trainers work from their clients', () {
-      expect(tabs(staffWith(trainerPermissions, browseAll: false)), [Routes.desk, Routes.clients, Routes.classes, Routes.more]);
+      expect(tabs(staffWith(trainerPermissions, browseAll: false)), [Routes.home, Routes.clients, Routes.classes]);
     });
 
-    test('trainer-receptionists get the desk and their clients, never the member list', () {
+    test('trainer-receptionists get their clients, never the member list', () {
       final both = staffWith({...receptionistPermissions, ...trainerPermissions}, browseAll: false);
-      expect(tabs(both), [Routes.desk, Routes.clients, Routes.classes, Routes.more]);
+      expect(tabs(both), [Routes.home, Routes.clients, Routes.classes]);
     });
 
-    test('owners start on today', () {
-      expect(tabs(staffWith(ownerPermissions)), [Routes.home, Routes.desk, Routes.members, Routes.classes, Routes.more]);
+    test('owners get home, members and classes', () {
+      expect(tabs(staffWith(ownerPermissions)), [Routes.home, Routes.members, Routes.classes]);
     });
 
-    test('nobody gets reports on the shared front-desk device', () {
-      expect(tabs(staffWith(ownerPermissions, shared: true)), isNot(contains(Routes.home)));
-    });
-
-    test('never more than five tabs', () {
+    test('never more than three tabs', () {
       final everything = staffWith({...ownerPermissions, ...trainerPermissions});
-      expect(tabsFor(everything).length, lessThanOrEqualTo(5));
+      expect(tabsFor(everything).length, lessThanOrEqualTo(3));
+    });
+  });
+
+  group('home follows the work', () {
+    List<HomeVariant> homes(StaffProfile staff) => homeVariantsFor(staff);
+
+    test('receptionists get the desk', () {
+      expect(homes(staffWith(receptionistPermissions)), [HomeVariant.desk]);
+    });
+
+    test('trainers on their own phone get the desk and training, training first', () {
+      final trainer = staffWith(trainerPermissions, browseAll: false);
+      expect(homes(trainer), [HomeVariant.desk, HomeVariant.training]);
+      expect(defaultHomeVariant(homes(trainer)), HomeVariant.training);
+    });
+
+    test('owners start on their figures', () {
+      final owner = staffWith(ownerPermissions);
+      expect(homes(owner), [HomeVariant.desk, HomeVariant.owner]);
+      expect(defaultHomeVariant(homes(owner)), HomeVariant.owner);
+    });
+
+    test('the shared front-desk device only ever has the desk', () {
+      expect(homes(staffWith(ownerPermissions, shared: true)), [HomeVariant.desk]);
+      expect(homes(staffWith(trainerPermissions, browseAll: false, shared: true)), [HomeVariant.desk]);
+    });
+
+    test('managers who also train keep their clients under More, not on Home', () {
+      expect(homes(staffWith({...ownerPermissions, ...trainerPermissions})), isNot(contains(HomeVariant.training)));
     });
   });
 
@@ -57,15 +82,15 @@ void main() {
       expect(authRedirect(const SignedOut(device: device), Routes.lock), isNull);
     });
 
-    test('signing in lands on the first tab', () {
+    test('signing in lands on home', () {
       expect(authRedirect(SignedIn(staffWith(ownerPermissions)), Routes.login), Routes.home);
-      expect(authRedirect(SignedIn(staffWith(receptionistPermissions), device: device), Routes.lock), Routes.desk);
+      expect(authRedirect(SignedIn(staffWith(receptionistPermissions), device: device), Routes.lock), Routes.home);
     });
 
-    test('a tab the staff member no longer has sends them to their first tab', () {
+    test('a tab the staff member no longer has sends them home', () {
       final trainer = SignedIn(staffWith(trainerPermissions, browseAll: false));
-      expect(authRedirect(trainer, Routes.members), Routes.desk);
-      expect(authRedirect(trainer, Routes.home), Routes.desk);
+      expect(authRedirect(trainer, Routes.members), Routes.home);
+      expect(authRedirect(trainer, Routes.home), isNull);
       expect(authRedirect(trainer, Routes.clients), isNull);
       // Screens outside the tabs are checked by the server.
       expect(authRedirect(trainer, Routes.member(5)), isNull);

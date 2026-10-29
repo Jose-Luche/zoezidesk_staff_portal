@@ -6,8 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zoezidesk_staff/core/notifications/push_messaging.dart';
 import 'package:zoezidesk_staff/core/router/routes.dart';
 import 'package:zoezidesk_staff/core/storage/device_preferences.dart';
+import 'package:zoezidesk_staff/core/theme/app_theme.dart';
 import 'package:zoezidesk_staff/data/api/push_devices_api.dart';
 import 'package:zoezidesk_staff/features/notifications/notifications_controller.dart';
+import 'package:zoezidesk_staff/shared/widgets/toast.dart';
 
 import '../helpers/fakes.dart';
 
@@ -136,15 +138,14 @@ void main() {
       devicePreferencesProvider.overrideWithValue(DevicePreferences(store)),
     ]);
     addTearDown(c.dispose);
-    final key = c.read(scaffoldMessengerKeyProvider);
-    await tester.pumpWidget(MaterialApp(scaffoldMessengerKey: key, home: const Scaffold()));
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: c,
+      child: MaterialApp(theme: AppTheme.light, home: const ToastHost(child: Scaffold())),
+    ));
     final watching = c.listen(notificationsControllerProvider, (_, _) {});
     await tester.pump();
 
-    key.currentState!.showSnackBar(SnackBar(
-      content: const Text('Today at Test Gym'),
-      action: SnackBarAction(label: 'View', onPressed: () {}),
-    ));
+    c.read(toastProvider).show('Today at Test Gym', actionLabel: 'View', onAction: () {}, hold: const Duration(seconds: 6));
     await tester.pumpAndSettle();
     expect(find.text('Today at Test Gym'), findsOneWidget);
 

@@ -4,10 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/errors/app_failure.dart';
 import '../../core/router/routes.dart';
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
-import '../auth/widgets/auth_scaffold.dart';
+import '../../shared/widgets/cards.dart';
+import '../../shared/widgets/controls.dart';
+import '../../shared/widgets/page.dart';
+import '../../shared/widgets/toast.dart';
 import 'enquiries_screen.dart';
 
 /// Someone walks in asking about the gym: name, phone, what they want, and
@@ -65,9 +69,7 @@ class _NewEnquiryScreenState extends ConsumerState<NewEnquiryScreen> {
       switch (result) {
         case EnquiryRecorded(:final welcomeSent):
           ref.invalidate(enquiriesProvider);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(_welcome && welcomeSent ? 'Enquiry saved and welcome WhatsApp sent.' : 'Enquiry saved.'),
-          ));
+          showToast(context, _welcome && welcomeSent ? 'Enquiry saved and welcome sent' : 'Enquiry saved');
           context.pop();
         case AlreadyAMember(:final message, :final memberId):
           final open = await _ask('Already a member', message, 'Open member');
@@ -97,48 +99,49 @@ class _NewEnquiryScreenState extends ConsumerState<NewEnquiryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('New enquiry')),
+    final text = Theme.of(context).textTheme;
+    return AppPage(
+      title: 'New enquiry',
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(AppSpace.md),
+          padding: const EdgeInsets.fromLTRB(AppGutter.heading, AppSpace.sm, AppGutter.heading, AppSpace.xxxl),
           children: [
-            TextFormField(
+            AppField(
+              label: 'Name',
               controller: _name,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Name'),
               validator: (v) => (v ?? '').trim().isEmpty ? 'Enter their name.' : null,
             ),
-            const SizedBox(height: AppSpace.md),
-            TextFormField(
+            const SizedBox(height: AppSpace.lg),
+            AppField(
+              label: 'Phone',
               controller: _phone,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone', hintText: '0712 345 678'),
+              hint: '0712 345 678',
+              prefixIcon: AppIcons.phone,
               validator: (v) => (v ?? '').replaceAll(RegExp(r'\D'), '').length >= 9 ? null : 'Enter a valid phone number.',
             ),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.xl),
+            Text('How they found us', style: text.titleMedium),
+            const SizedBox(height: AppSpace.sm),
             Wrap(spacing: AppSpace.sm, children: [
               for (final MapEntry(:key, :value) in _sources.entries)
-                ChoiceChip(label: Text(value), selected: _source == key, onSelected: (_) => setState(() => _source = key)),
+                PillChip(label: value, selected: _source == key, onTap: () => setState(() => _source = key)),
             ]),
-            const SizedBox(height: AppSpace.md),
-            TextFormField(
-              controller: _interest,
-              decoration: const InputDecoration(labelText: 'Interested in (optional)', hintText: 'e.g. Monthly, evening classes'),
-            ),
-            const SizedBox(height: AppSpace.md),
-            TextFormField(
+            const SizedBox(height: AppSpace.xl),
+            AppField(label: 'Interested in (optional)', controller: _interest, hint: 'e.g. Monthly, evening classes'),
+            const SizedBox(height: AppSpace.lg),
+            AppField(
+              label: 'Notes (optional)',
               controller: _notes,
               minLines: 2,
               maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Notes (optional)', hintText: 'Goals, questions, best time to call'),
+              hint: 'Goals, questions, best time to call',
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_rounded),
-              title: Text(_followUpOn == null ? 'No follow-up call' : 'Call them back ${formatDate(_followUpOn!)}'),
-              trailing: const Icon(Icons.edit_calendar_rounded),
+            const SizedBox(height: AppSpace.lg),
+            QuickDateButton(
+              label: _followUpOn == null ? 'No follow-up call' : 'Call back ${formatDayDate(_followUpOn!)}',
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,
@@ -149,15 +152,15 @@ class _NewEnquiryScreenState extends ConsumerState<NewEnquiryScreen> {
                 if (picked != null) setState(() => _followUpOn = picked);
               },
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
+            const SizedBox(height: AppSpace.sm),
+            SwitchRow(
+              title: 'Send a welcome WhatsApp',
+              subtitle: 'If the gym has WhatsApp set up',
               value: _welcome,
               onChanged: (v) => setState(() => _welcome = v),
-              title: const Text('Send a welcome WhatsApp'),
-              subtitle: const Text('If the gym has WhatsApp set up'),
             ),
-            if (_error != null) FormErrorText(_error!),
-            const SizedBox(height: AppSpace.lg),
+            if (_error != null) ...[const SizedBox(height: AppSpace.lg), FormErrorText(_error!)],
+            const SizedBox(height: AppSpace.xxl),
             FilledButton(onPressed: _busy ? null : _submit, child: Text(_busy ? 'Saving…' : 'Save enquiry')),
           ],
         ),

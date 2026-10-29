@@ -7,119 +7,127 @@ import '../../core/utils/url_opener.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../shared/widgets/async_view.dart';
+import '../../shared/widgets/buttons.dart';
 import '../../shared/widgets/member_tile.dart';
+import '../../shared/widgets/page.dart';
+import '../../shared/widgets/sheet.dart';
+import '../../shared/widgets/skeleton.dart';
 import '../../shared/widgets/state_message.dart';
+import '../../shared/widgets/toast.dart';
 import '../auth/state/session_controller.dart';
-import 'member_actions.dart';
+import '../members/member_sheet.dart';
 
 final followUpsProvider = FutureProvider.autoDispose<({List<FollowUp> expiring, List<FollowUp> lapsed})>(
   (ref) => ref.watch(staffApiProvider).followUps(),
 );
 
-/// Who to call this week: memberships ending in the next 7 days, and ones
-/// that ended in the last 14 without a renewal. Trainers see their clients.
-class FollowUpsScreen extends ConsumerWidget {
+const _intro = 'Ending in 7 days or lapsed. A reminder goes by WhatsApp.';
+
+/// Who to remind this week, from Home's warning tiles.
+Future<void> showFollowUpsSheet(BuildContext context) => showAppSheet<void>(
+      context,
+      builder: (_) => const SheetBody(children: [SheetTitle('Follow-ups', subtitle: _intro), FollowUpsList()]),
+    );
+
+/// The same list as a page, for links from notifications.
+class FollowUpsScreen extends StatelessWidget {
   const FollowUpsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final followUps = ref.watch(followUpsProvider);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Follow-ups')),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(followUpsProvider.future),
-        child: AsyncView(
-          value: followUps,
-          onRetry: () => ref.invalidate(followUpsProvider),
-          data: (f) => f.expiring.isEmpty && f.lapsed.isEmpty
-              ? ListView(children: const [
-                  SizedBox(height: AppSpace.xxxl),
-                  StateMessage.empty(
-                    title: 'Nobody to follow up',
-                    message: 'No memberships end this week, and nobody has lapsed in the last two weeks.',
-                  ),
-                ])
-              : ListView(
-                  padding: const EdgeInsets.only(bottom: AppSpace.xxxl),
-                  children: [
-                    if (f.expiring.isNotEmpty) ...[
-                      _Heading('Ending in the next 7 days', f.expiring.length),
-                      for (final row in f.expiring) _FollowUpTile(row: row),
-                    ],
-                    if (f.lapsed.isNotEmpty) ...[
-                      _Heading('Ended in the last 14 days', f.lapsed.length),
-                      for (final row in f.lapsed) _FollowUpTile(row: row),
-                    ],
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Heading extends StatelessWidget {
-  const _Heading(this.title, this.count);
-
-  final String title;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpace.md, AppSpace.lg, AppSpace.md, AppSpace.xs),
-        child: Text('$title · $count', style: Theme.of(context).textTheme.titleLarge),
+  Widget build(BuildContext context) => const AppPage(
+        title: 'Follow-ups',
+        body: SheetBody(children: [Text(_intro), SizedBox(height: AppSpace.xl), FollowUpsList()]),
       );
 }
 
-class _FollowUpTile extends ConsumerWidget {
-  const _FollowUpTile({required this.row});
+/// Memberships ending in the next 7 days, then ones that ended in the last
+/// 14 without a renewal. Trainers see their clients.
+class FollowUpsList extends ConsumerStatefulWidget {
+  const FollowUpsList({super.key});
 
-  final FollowUp row;
+  @override
+  ConsumerState<FollowUpsList> createState() => _FollowUpsListState();
+}
 
-  /// Only for lapsed members: for the others, the membership badge already
-  /// says how many days are left.
-  String? get _ended => switch (row.days) {
-        >= 0 => null,
+class _FollowUpsListState extends ConsumerState<FollowUpsList> {
+  /// Reminded in this sheet, shown as "Sent".
+  final _sent = <int>{};
+
+  Future<void> _remind(FollowUp row) async {
+    final gym = ref.read(staffProvider).gymName;
+    final first = firstName(row.member.name);
+    final plan = row.plan ?? 'gym';
+    final message = row.days >= 0
+        ? 'Hi $first, your $plan membership at $gym ends on ${formatDate(row.expiresAt)}. '
+            'Renew at the front desk or in the ZoeziDesk app to keep training without a break.'
+        : 'Hi $first, we miss you at $gym! Your $plan membership ended on ${formatDate(row.expiresAt)}. '
+            'Renew at the front desk or in the ZoeziDesk app whenever you are ready.';
+    final uri = Uri.https('wa.me', '/${normalizeKenyanPhone(row.member.phone)}', {'text': message});
+    final opened = await ref.read(urlOpenerProvider)(uri);
+    if (!mounted) return;
+    if (opened) {
+      setState(() => _sent.add(row.member.id));
+      showToast(context, 'Reminder to $first opened in WhatsApp');
+    } else {
+      showToast(context, 'WhatsApp is not on this phone.');
+    }
+  }
+
+  static String _status(FollowUp row) => switch (row.days) {
+        0 => 'Ends today',
+        > 0 => 'Ends ${formatShortDate(row.expiresAt)}',
         -1 => 'Ended yesterday',
         _ => 'Ended ${-row.days} days ago',
       };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final gym = ref.watch(staffProvider).gymName;
-    final open = ref.watch(urlOpenerProvider);
-    final phone = normalizeKenyanPhone(row.member.phone);
-    final firstName = row.member.name.split(' ').first;
-    final plan = row.plan ?? 'gym';
-    final message = row.days >= 0
-        ? 'Hi $firstName, your $plan membership at $gym ends on ${formatDate(row.expiresAt)}. '
-            'Renew at the front desk or in the ZoeziDesk app to keep training without a break.'
-        : 'Hi $firstName, we miss you at $gym! Your $plan membership ended on ${formatDate(row.expiresAt)}. '
-            'Renew at the front desk or in the ZoeziDesk app whenever you are ready.';
-
-    Future<void> launch(Uri uri) async {
-      if (!await open(uri) && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No app on this phone can open that.')));
-      }
-    }
-
-    return MemberTile(
-      member: row.member,
-      subtitle: [?_ended, formatLocalPhone(row.member.phone)].join(' · '),
-      onTap: () => showMemberActions(context, row.member),
-      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(
-          tooltip: 'Call ${row.member.name}',
-          icon: const Icon(Icons.call_rounded),
-          onPressed: () => launch(Uri(scheme: 'tel', path: '+$phone')),
-        ),
-        IconButton(
-          tooltip: 'WhatsApp ${row.member.name}',
-          icon: const Icon(Icons.chat_rounded),
-          onPressed: () => launch(Uri.https('wa.me', '/$phone', {'text': message})),
-        ),
-      ]),
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final p = context.palette;
+    return AsyncView(
+      value: ref.watch(followUpsProvider),
+      onRetry: () => ref.invalidate(followUpsProvider),
+      loading: const SkeletonList.inline(),
+      data: (f) {
+        final rows = [...f.expiring, ...f.lapsed];
+        if (rows.isEmpty) {
+          return const StateMessage.empty(
+            title: 'Nobody to follow up',
+            message: 'No memberships end this week, and nobody has lapsed in the last two weeks.',
+          );
+        }
+        return Column(children: [
+          for (final row in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.tile),
+                onTap: () => showMemberSheet(context, row.member),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(children: [
+                    MemberAvatar(initials: row.member.initials, photoUrl: row.member.photoUrl, seed: row.member.id),
+                    const SizedBox(width: AppSpace.md),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(row.member.name, style: text.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(_status(row), style: text.bodySmall?.copyWith(color: p.warning.on, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                    Opacity(
+                      opacity: _sent.contains(row.member.id) ? 0.45 : 1,
+                      child: SmallPillButton(
+                        label: _sent.contains(row.member.id) ? 'Sent' : 'Remind',
+                        filled: false,
+                        onPressed: _sent.contains(row.member.id) ? null : () => _remind(row),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+        ]);
+      },
     );
   }
 }

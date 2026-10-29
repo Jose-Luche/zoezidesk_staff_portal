@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../shared/widgets/buttons.dart';
+import '../../../shared/widgets/cards.dart';
 
-/// Shared layout for the login steps: brand mark, title, subtitle, form.
+/// Shared layout for the sign-in steps: the corner circle, the wordmark, a
+/// big flush-left title, a line under it, then the form.
 class AuthScaffold extends StatelessWidget {
   const AuthScaffold({
     super.key,
@@ -22,81 +26,54 @@ class AuthScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: showBack ? AppBar() : null,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpace.lg),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const BrandMark(),
-                  const SizedBox(height: AppSpace.xl),
-                  Text(title, style: text.headlineLarge),
-                  const SizedBox(height: AppSpace.sm),
-                  Text(
-                    subtitle,
-                    style: text.bodyMedium?.copyWith(color: context.palette.textMuted),
-                  ),
-                  const SizedBox(height: AppSpace.lg),
+      body: Stack(children: [
+        const CornerDecoration(),
+        SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(AppGutter.heading, AppSpace.lg, AppGutter.heading, AppSpace.xxxl),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(children: [
+                    if (showBack) ...[
+                      CircleIconButton(
+                        icon: AppIcons.back,
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                      const SizedBox(width: AppSpace.md),
+                    ],
+                    const BrandMark(),
+                  ]),
+                  const SizedBox(height: AppSpace.xxxl + AppSpace.lg),
+                  Semantics(header: true, child: Text(title, style: text.displayLarge)),
+                  const SizedBox(height: AppSpace.md),
+                  Text(subtitle, style: text.bodyMedium?.copyWith(color: context.palette.muted)),
+                  const SizedBox(height: AppSpace.xxl),
                   child,
-                ],
+                ]),
               ),
             ),
           ),
         ),
-      ),
+      ]),
     );
   }
 }
 
-/// The ZoeziDesk wordmark, light text on dark and navy text on light.
+/// The ZoeziDesk wordmark in the Organic colors: terracotta and warm black
+/// on cream, sand and light terracotta on dark. The original brand-orange
+/// files stay next to them in assets/logo.
 class BrandMark extends StatelessWidget {
   const BrandMark({super.key});
 
-  static const darkAsset = 'assets/logo/zoezi-desk-horizontal-dark.svg';
-  static const lightAsset = 'assets/logo/zoezi-desk-horizontal-light.svg';
+  static const darkAsset = 'assets/logo/zoezi-desk-horizontal-organic-dark.svg';
+  static const lightAsset = 'assets/logo/zoezi-desk-horizontal-organic-light.svg';
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SvgPicture.asset(
-        dark ? darkAsset : lightAsset,
-        height: AppSpace.xl,
-        semanticsLabel: 'ZoeziDesk',
-      ),
-    );
-  }
-}
-
-/// Inline error under a form, with an icon so it does not rely on color.
-class FormErrorText extends StatelessWidget {
-  const FormErrorText(this.message, {super.key});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final danger = context.palette.danger;
-    return Semantics(
-      liveRegion: true,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.error_outline_rounded, color: danger, size: AppSizes.icon),
-          const SizedBox(width: AppSpace.sm),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: danger),
-            ),
-          ),
-        ],
-      ),
-    );
+    return SvgPicture.asset(dark ? darkAsset : lightAsset, height: 28, semanticsLabel: 'ZoeziDesk');
   }
 }

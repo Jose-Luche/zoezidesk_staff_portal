@@ -32,6 +32,8 @@ dependencies:
   crypto: ^3.0.6
   # Member photos at the desk
   image_picker: ^1.2.1
+  # Lucide icons; the 600 weight is the design's heavy stroke
+  lucide_icons_flutter: 3.1.25
 
 dev_dependencies:
   flutter_test:
@@ -42,26 +44,21 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Barlow (body) and Barlow Condensed (headings), bundled like the members
-  # app so the app looks right offline.
+  # Caprasimo (display and headings) and Figtree (body and UI), bundled so
+  # the app looks right offline. Both OFL; licences next to the files.
   fonts:
-    - family: Barlow
+    - family: Caprasimo
       fonts:
-        - asset: assets/fonts/Barlow-Regular.ttf
-        - asset: assets/fonts/Barlow-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/Barlow-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/Barlow-Bold.ttf
-          weight: 700
-    - family: Barlow Condensed
+        - asset: assets/fonts/Caprasimo-Regular.ttf
+    - family: Figtree
       fonts:
-        - asset: assets/fonts/BarlowCondensed-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/BarlowCondensed-SemiBold.ttf
+        - asset: assets/fonts/Figtree-Regular.ttf
+        - asset: assets/fonts/Figtree-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/BarlowCondensed-Bold.ttf
+        - asset: assets/fonts/Figtree-Bold.ttf
           weight: 700
   assets:
     - assets/logo/zoezi-desk-horizontal-dark.svg
     - assets/logo/zoezi-desk-horizontal-light.svg
+    - assets/logo/zoezi-desk-horizontal-organic-dark.svg
+    - assets/logo/zoezi-desk-horizontal-organic-light.svg

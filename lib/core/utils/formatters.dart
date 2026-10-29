@@ -2,11 +2,42 @@ import 'package:intl/intl.dart';
 
 final _kes = NumberFormat.decimalPattern('en_KE');
 final _date = DateFormat('d MMM yyyy');
+final _shortDate = DateFormat('d MMM');
+final _dayDate = DateFormat('EEE d MMM');
+final _time = DateFormat('HH:mm');
 
 /// Amounts are whole shillings, as stored by the backend.
 String formatKes(num amount) => 'KES ${_kes.format(amount)}';
 
 String formatDate(DateTime date) => _date.format(date);
+
+/// "28 Nov".
+String formatShortDate(DateTime date) => _shortDate.format(date);
+
+/// "Thu 29 Oct".
+String formatDayDate(DateTime date) => _dayDate.format(date);
+
+/// "07:42", always 24-hour.
+String formatTime(DateTime time) => _time.format(time);
+
+/// "today", "yesterday", "2d ago": how long since a workout or a visit.
+String formatDaysAgo(DateTime then, DateTime now) {
+  final days = DateTime(now.year, now.month, now.day).difference(DateTime(then.year, then.month, then.day)).inDays;
+  return switch (days) { <= 0 => 'today', 1 => 'yesterday', _ => '${days}d ago' };
+}
+
+/// The first word of a name, for "Brian is checked in".
+String firstName(String? name) {
+  final first = (name ?? '').trim().split(RegExp(r'\s+')).first;
+  return first.isEmpty ? 'The member' : first;
+}
+
+/// "Morning", "Afternoon" or "Evening".
+String partOfDay(DateTime now) => now.hour < 12 ? 'Morning' : (now.hour < 17 ? 'Afternoon' : 'Evening');
+
+/// Initials from a name, for staff and enquiries (members come with theirs).
+String initialsOf(String name) =>
+    name.split(' ').where((p) => p.isNotEmpty).take(2).map((p) => p[0].toUpperCase()).join();
 
 /// "just now", "5 min ago", "3 h ago", "yesterday", "12 Oct 2026".
 String formatRelative(DateTime then, DateTime now) {

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_tokens.dart';
 
-/// Designed empty, error and offline states: an icon, a short message and
-/// one clear action.
+/// Designed empty, error and offline states: flush left, a soft icon
+/// circle, a Caprasimo title, a short message and one clear action.
 class StateMessage extends StatelessWidget {
   const StateMessage({
     super.key,
@@ -20,7 +21,7 @@ class StateMessage extends StatelessWidget {
     required this.message,
     this.actionLabel,
     this.onAction,
-  }) : icon = Icons.inbox_rounded;
+  }) : icon = AppIcons.empty;
 
   const StateMessage.error({
     super.key,
@@ -28,7 +29,7 @@ class StateMessage extends StatelessWidget {
     this.message = 'We could not load this. Check your connection and try again.',
     this.actionLabel = 'Try again',
     this.onAction,
-  }) : icon = Icons.error_outline_rounded;
+  }) : icon = AppIcons.error;
 
   const StateMessage.offline({
     super.key,
@@ -36,7 +37,7 @@ class StateMessage extends StatelessWidget {
     this.message = 'This needs an internet connection. Reconnect and try again.',
     this.actionLabel = 'Try again',
     this.onAction,
-  }) : icon = Icons.cloud_off_rounded;
+  }) : icon = AppIcons.offline;
 
   final IconData icon;
   final String title;
@@ -46,36 +47,26 @@ class StateMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = context.palette;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpace.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: AppSpace.xxl, color: palette.textMuted),
-            const SizedBox(height: AppSpace.md),
-            Text(
-              title,
-              style: theme.textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpace.sm),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: palette.textMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: AppSpace.lg),
-              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
-            ],
-          ],
+    final p = context.palette;
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppGutter.heading, vertical: AppSpace.xxl),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(color: p.surface, shape: BoxShape.circle),
+          child: Icon(icon, size: AppIconSize.md + 2, color: p.accent),
         ),
-      ),
+        const SizedBox(height: AppSpace.lg),
+        Text(title, style: text.titleLarge),
+        const SizedBox(height: AppSpace.xs),
+        Text(message, style: text.bodyMedium?.copyWith(color: p.muted)),
+        if (actionLabel != null && onAction != null) ...[
+          const SizedBox(height: AppSpace.xl),
+          OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+        ],
+      ]),
     );
   }
 }

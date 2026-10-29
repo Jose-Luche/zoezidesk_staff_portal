@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 import '../../data/models/staff.dart';
 
 abstract final class Routes {
@@ -10,15 +8,16 @@ abstract final class Routes {
 
   // Tabs
   static const home = '/home';
-  static const desk = '/desk';
   static const members = '/members';
   static const clients = '/clients';
   static const classes = '/classes';
-  static const more = '/more';
 
+  /// The old front-desk tab, now the Desk home. Kept for notification links.
+  static const desk = '/desk';
+
+  static const more = '/more';
   static const scan = '/desk/scan';
   static const shift = '/shift';
-  static const newMember = '/members/new';
   static String member(int id) => '/members/$id';
   static String editMember(int id) => '/members/$id/edit';
   static const followUps = '/follow-ups';
@@ -35,33 +34,57 @@ abstract final class Routes {
 
 /// A bottom-bar tab.
 class AppTab {
-  const AppTab(this.path, this.label, this.icon, this.selectedIcon);
+  const AppTab(this.path, this.label);
 
   final String path;
   final String label;
-  final IconData icon;
-  final IconData selectedIcon;
 }
 
-const _homeTab = AppTab(Routes.home, 'Today', Icons.insights_outlined, Icons.insights_rounded);
-const _deskTab = AppTab(Routes.desk, 'Front desk', Icons.qr_code_scanner_rounded, Icons.qr_code_scanner_rounded);
-const _membersTab = AppTab(Routes.members, 'Members', Icons.people_outline_rounded, Icons.people_rounded);
-const _clientsTab = AppTab(Routes.clients, 'My clients', Icons.fitness_center_outlined, Icons.fitness_center_rounded);
-const _classesTab = AppTab(Routes.classes, 'Classes', Icons.calendar_month_outlined, Icons.calendar_month_rounded);
-const _moreTab = AppTab(Routes.more, 'More', Icons.menu_rounded, Icons.menu_rounded);
+const _homeTab = AppTab(Routes.home, 'Home');
+const _membersTab = AppTab(Routes.members, 'Members');
+const _clientsTab = AppTab(Routes.clients, 'My clients');
+const _classesTab = AppTab(Routes.classes, 'Classes');
 
 /// Every tab the app has, in bar order.
-const allTabs = [_homeTab, _deskTab, _membersTab, _clientsTab, _classesTab, _moreTab];
+const allTabs = [_homeTab, _membersTab, _clientsTab, _classesTab];
 
 /// The tabs this staff member gets, from their permissions (the server checks
-/// every request anyway). At most five.
+/// every request anyway): Home, then Members (or My clients for trainers who
+/// can't browse everyone), then Classes. Never more than three; everything
+/// else lives under More, from the Home header.
 List<AppTab> tabsFor(StaffProfile staff) => [
-      if (staff.can('reports.view') && !staff.sharedDevice) _homeTab,
-      if (staff.can('checkin.scan')) _deskTab,
-      if (staff.can('members.view') && staff.browseAllMembers) _membersTab,
-      // Trainers who don't see every member work from their clients instead;
-      // managers who also train find "My clients" under More.
-      if (staff.can('members.view_assigned') && !staff.browseAllMembers) _clientsTab,
+      _homeTab,
+      if (staff.can('members.view') && staff.browseAllMembers)
+        _membersTab
+      else if (staff.can('members.view_assigned'))
+        _clientsTab,
       if (staff.can('classes.view')) _classesTab,
-      _moreTab,
     ];
+
+/// The shapes Home takes, one per kind of work (design.md §4).
+enum HomeVariant {
+  desk('Desk'),
+  training('Training'),
+  owner('Owner');
+
+  const HomeVariant(this.label);
+
+  final String label;
+}
+
+/// Which Homes this staff member has, in switcher order. The shared
+/// front-desk device only ever has Desk.
+List<HomeVariant> homeVariantsFor(StaffProfile staff) => [
+      if (staff.can('checkin.scan')) HomeVariant.desk,
+      if (!staff.sharedDevice && staff.can('members.view_assigned') && !staff.browseAllMembers) HomeVariant.training,
+      if (!staff.sharedDevice && staff.can('reports.view')) HomeVariant.owner,
+    ];
+
+/// The Home shown before someone picks one: the widest view they have.
+HomeVariant? defaultHomeVariant(List<HomeVariant> variants) => variants.isEmpty
+    ? null
+    : variants.contains(HomeVariant.owner)
+        ? HomeVariant.owner
+        : variants.contains(HomeVariant.training)
+            ? HomeVariant.training
+            : variants.first;

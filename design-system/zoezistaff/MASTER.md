@@ -1,3 +1,10 @@
+> **SUPERSEDED (2026-10-29):** The staff app now follows `design.md` at the repo root
+> (the Organic "Shift home" system: cream, terracotta and sage; Caprasimo and Figtree).
+> Do not build from the colors or fonts below. This file is kept as the record of the
+> original brand: the logo files `assets/logo/zoezi-desk-horizontal-{light,dark}.svg`
+> still use its orange `#F97316` and navy `#0D1E2E`. The app shows the Organic
+> recolors (`zoezi-desk-horizontal-organic-{light,dark}.svg`).
+
 # Design System Master File
 
 > **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.

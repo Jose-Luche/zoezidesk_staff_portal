@@ -9,6 +9,7 @@ import 'core/theme/theme_mode_controller.dart';
 import 'features/auth/state/session_controller.dart';
 import 'features/desk/offline_desk.dart';
 import 'features/notifications/notifications_controller.dart';
+import 'shared/widgets/toast.dart';
 
 class ZoeziStaffApp extends ConsumerWidget {
   const ZoeziStaffApp({super.key});
@@ -30,9 +31,8 @@ class ZoeziStaffApp extends ConsumerWidget {
       themeMode: ref.watch(themeModeProvider),
       themeAnimationDuration: Duration.zero,
       routerConfig: ref.watch(routerProvider),
-      scaffoldMessengerKey: ref.watch(scaffoldMessengerKeyProvider),
       builder: (context, child) => _ProfileOnResume(
-        child: shared ? IdleLock(child: child!) : child!,
+        child: ToastHost(child: shared ? IdleLock(child: child!) : child!),
       ),
     );
   }
