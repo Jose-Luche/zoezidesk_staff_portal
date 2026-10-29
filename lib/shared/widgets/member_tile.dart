@@ -5,17 +5,19 @@ import '../../core/utils/formatters.dart';
 import '../../data/models/members.dart';
 import 'app_badge.dart';
 
-/// Initials in a circle (member photos come later).
+/// The member's photo in a circle, or their initials when there is none
+/// (or it can't be loaded).
 class MemberAvatar extends StatelessWidget {
-  const MemberAvatar({super.key, required this.initials, this.size = 40});
+  const MemberAvatar({super.key, required this.initials, this.size = 40, this.photoUrl});
 
   final String initials;
   final double size;
+  final String? photoUrl;
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    return Container(
+    final fallback = Container(
       width: size,
       height: size,
       alignment: Alignment.center,
@@ -23,6 +25,22 @@ class MemberAvatar extends StatelessWidget {
       child: Text(
         initials,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(color: p.accentText, fontSize: size * 0.36),
+      ),
+    );
+    final url = photoUrl;
+    if (url == null) return fallback;
+
+    return ClipOval(
+      child: Image.network(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        // Decoded at the size shown, not the camera's.
+        cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+        semanticLabel: 'Photo',
+        errorBuilder: (_, _, _) => fallback,
+        loadingBuilder: (_, child, progress) => progress == null ? child : fallback,
       ),
     );
   }
@@ -50,9 +68,12 @@ class MembershipBadge extends StatelessWidget {
 
 /// One member in a list: avatar, name, number and membership.
 class MemberTile extends StatelessWidget {
-  const MemberTile({super.key, required this.member, this.onTap, this.trailing, this.subtitle});
+  const MemberTile({super.key, required this.member, this.onTap, this.trailing, this.subtitle, this.avatarSize = 40});
 
   final MemberCard member;
+
+  /// Larger where staff check it is really the member (scan results).
+  final double avatarSize;
   final VoidCallback? onTap;
   final Widget? trailing;
 
@@ -65,7 +86,7 @@ class MemberTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       minTileHeight: AppSizes.minTouch + AppSpace.md,
-      leading: MemberAvatar(initials: member.initials),
+      leading: MemberAvatar(initials: member.initials, photoUrl: member.photoUrl, size: avatarSize),
       title: Text(member.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: AppSpace.xs),

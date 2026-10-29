@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zoezidesk_staff/core/network/retry_interceptor.dart';
@@ -180,5 +182,26 @@ void main() {
 
     expect(e.stage, 'interested');
     expect(adapter.requests.single.data, {'outcome': 'interested', 'next_on': '2026-11-02'});
+  });
+
+  test('a member photo is uploaded as multipart and the new card comes back', () async {
+    final dir = Directory.systemTemp.createTempSync('photo');
+    addTearDown(() {
+      try {
+        dir.deleteSync(recursive: true);
+      } on FileSystemException {
+        // Windows: the fake adapter never reads the upload, so the file stays open.
+      }
+    });
+    final file = File('${dir.path}/p.jpg')..writeAsBytesSync([0xFF, 0xD8, 0xFF]);
+    adapter.reply(200, {'success': true, 'member': card()..['photo_url'] = 'https://gym.test/storage/p.jpg'});
+
+    final member = await api.uploadMemberPhoto(12, file.path);
+
+    expect(member.photoUrl, 'https://gym.test/storage/p.jpg');
+    final request = adapter.requests.single;
+    expect(request.path, '/staff/members/12/photo');
+    expect(request.data, isA<FormData>());
+    expect((request.data as FormData).files.single.key, 'photo');
   });
 }

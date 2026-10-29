@@ -198,6 +198,18 @@ class StaffApi {
         return MemberCard.fromJson(res.data!['member'] as Map<String, dynamic>);
       });
 
+  /// A photo taken at the desk (a JPEG file on the phone); replaces the old one.
+  Future<MemberCard> uploadMemberPhoto(int id, String filePath) => guardRequest(() async {
+        final res = await _dio.post<Map<String, dynamic>>('/staff/members/$id/photo',
+            data: FormData.fromMap({'photo': await MultipartFile.fromFile(filePath, filename: 'photo.jpg')}));
+        return MemberCard.fromJson(res.data!['member'] as Map<String, dynamic>);
+      });
+
+  Future<MemberCard> removeMemberPhoto(int id) => guardRequest(() async {
+        final res = await _dio.delete<Map<String, dynamic>>('/staff/members/$id/photo');
+        return MemberCard.fromJson(res.data!['member'] as Map<String, dynamic>);
+      });
+
   /// Who to call: memberships ending within [days], and ones that ended in
   /// the last [lapsedDays] without a renewal.
   Future<({List<FollowUp> expiring, List<FollowUp> lapsed})> followUps({int days = 7, int lapsedDays = 14}) async {

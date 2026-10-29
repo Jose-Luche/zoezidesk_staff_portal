@@ -188,7 +188,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                     ),
                   if (result != null) ...[
                     _Outcome(ok: ok, message: result.message),
-                    if (result.member != null) MemberTile(member: result.member!),
+                    if (result.member != null) MemberTile(member: result.member!, avatarSize: 72),
                     if (!ok && result.member != null && staff.can('payments.record'))
                       FilledButton.icon(
                         onPressed: () => context.push(Routes.pay(result.member!.id)),

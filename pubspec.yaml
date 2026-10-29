@@ -30,6 +30,8 @@ dependencies:
   # Offline check-ins: the member list in a file, QR codes matched by hash
   path_provider: ^2.1.5
   crypto: ^3.0.6
+  # Member photos at the desk
+  image_picker: ^1.2.1
 
 dev_dependencies:
   flutter_test:

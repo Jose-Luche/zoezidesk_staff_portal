@@ -107,7 +107,7 @@ class _ClientTile extends StatelessWidget {
     final days = t?.daysSinceWorkout;
     return ListTile(
       onTap: () => context.push(Routes.member(client.card.id)),
-      leading: MemberAvatar(initials: client.card.initials),
+      leading: MemberAvatar(initials: client.card.initials, photoUrl: client.card.photoUrl),
       title: Text(client.card.name),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: AppSpace.xs),

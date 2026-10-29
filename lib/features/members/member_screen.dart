@@ -15,6 +15,7 @@ import '../../shared/widgets/skeleton.dart';
 import '../../shared/widgets/state_message.dart';
 import '../desk/member_actions.dart';
 import '../payments/payment_actions.dart';
+import 'member_photo.dart';
 import 'member_providers.dart';
 
 /// A member's profile. Training and notes only for staff who may see them
@@ -47,10 +48,10 @@ class MemberScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.only(bottom: AppSpace.xxxl),
             children: [
-              MemberTile(member: p.card),
+              MemberTile(member: p.card, avatarSize: 72),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-                child: Wrap(spacing: AppSpace.sm, children: [
+                child: Wrap(spacing: AppSpace.sm, runSpacing: AppSpace.sm, children: [
                   if (p.canTakePayment)
                     FilledButton.icon(
                       onPressed: () => context.push(Routes.pay(p.card.id)),
@@ -62,6 +63,12 @@ class MemberScreen extends ConsumerWidget {
                     icon: const Icon(Icons.login_rounded),
                     label: const Text('Check in'),
                   ),
+                  if (p.canEdit)
+                    OutlinedButton.icon(
+                      onPressed: () => changeMemberPhoto(context, ref, p.card),
+                      icon: const Icon(Icons.photo_camera_rounded),
+                      label: Text(p.card.photoUrl == null ? 'Take photo' : 'Change photo'),
+                    ),
                 ]),
               ),
               _Details(profile: p),
