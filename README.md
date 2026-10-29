@@ -26,6 +26,19 @@ flutter run --dart-define-from-file=env/dev.json
 `env/*.json` (except the example) are gitignored. On the Android emulator the host's
 XAMPP is `http://10.0.2.2/...`.
 
+### Notifications
+
+The app is a second Android app (`com.zoezidesk.staff`) in the members app's Firebase
+project, `zoezidesk-member`, so the backend's existing `FIREBASE_CREDENTIALS` sends to
+both. Fill the `FIREBASE_*` values in `env/dev.json` from that project's
+`google-services.json` (the `com.zoezidesk.staff` client): `api_key`, `mobilesdk_app_id`,
+`project_number` (sender ID) and `project_id`. Without them the app runs without
+notifications.
+
+Only personal sign-ins register for notifications, never the front-desk device. Staff
+turn them off under More → App notifications. Sent today: a front-desk PIN locked after
+too many wrong tries, to the gym's owners and managers and to the staff member.
+
 ## Signing in
 
 - **Own phone:** email and password, as on the web. Tokens are short-lived and
@@ -61,8 +74,6 @@ flutter test
 
 ## Not done yet
 
-- **Notifications:** register the app (`com.zoezidesk.staff`) in the Firebase project,
-  then add Firebase as the members app does (`lib/core/notifications`, `Env` values).
 - Receipt PDFs: the API serves them (`GET /api/staff/payments/{id}/receipt`); the app
   doesn't open them yet.
 - Launcher icons: `python tool/make_icons.py` draws them from the logo mark, as in the

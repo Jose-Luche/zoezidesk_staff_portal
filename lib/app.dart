@@ -7,6 +7,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_controller.dart';
 import 'features/auth/state/session_controller.dart';
+import 'features/notifications/notifications_controller.dart';
 
 class ZoeziStaffApp extends ConsumerWidget {
   const ZoeziStaffApp({super.key});
@@ -15,6 +16,9 @@ class ZoeziStaffApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider);
     final shared = session is SignedIn && session.staff.sharedDevice;
+    // Personal phones only: the front-desk device would show one person's
+    // alerts to whoever is at the desk.
+    if (session is SignedIn && !shared) ref.watch(notificationsControllerProvider);
 
     return MaterialApp.router(
       title: 'ZoeziDesk Staff',
@@ -24,6 +28,7 @@ class ZoeziStaffApp extends ConsumerWidget {
       themeMode: ref.watch(themeModeProvider),
       themeAnimationDuration: Duration.zero,
       routerConfig: ref.watch(routerProvider),
+      scaffoldMessengerKey: ref.watch(scaffoldMessengerKeyProvider),
       builder: (context, child) => _ProfileOnResume(
         child: shared ? IdleLock(child: child!) : child!,
       ),

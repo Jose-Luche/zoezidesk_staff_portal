@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/config/env.dart';
+import 'core/notifications/push_messaging.dart';
 import 'core/storage/device_preferences.dart';
 import 'core/storage/session_storage.dart';
 import 'core/theme/theme_mode_controller.dart';
@@ -24,8 +25,11 @@ Future<void> main() async {
     // Unreadable storage: use the default.
   }
 
+  final push = await initializeFirebase();
+
   runApp(ProviderScope(
     overrides: [
+      if (push) pushMessagingProvider.overrideWithValue(FirebasePushMessaging()),
       if (themeMode != null) initialThemeModeProvider.overrideWithValue(themeMode),
     ],
     child: const ZoeziStaffApp(),

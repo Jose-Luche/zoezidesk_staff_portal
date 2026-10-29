@@ -13,6 +13,7 @@ import '../../shared/widgets/info_banner.dart';
 import '../../shared/widgets/member_tile.dart';
 import '../auth/state/session_controller.dart';
 import '../auth/widgets/auth_scaffold.dart';
+import '../notifications/notifications_controller.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -64,6 +65,7 @@ class MoreScreen extends ConsumerWidget {
               subtitle: const Text('Used to sign in on the gym\'s front-desk device'),
               onTap: () => context.push(Routes.pin),
             ),
+          if (!staff.sharedDevice) const _NotificationsTile(),
           ListTile(
             leading: const Icon(Icons.dark_mode_rounded),
             title: const Text('Theme'),
@@ -93,6 +95,36 @@ class MoreScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+class _NotificationsTile extends ConsumerWidget {
+  const _NotificationsTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(notificationsControllerProvider);
+    if (status == NotificationStatus.unavailable) return const SizedBox.shrink();
+
+    return Column(children: [
+      SwitchListTile(
+        secondary: const Icon(Icons.notifications_rounded),
+        title: const Text('App notifications'),
+        subtitle: const Text('Front-desk PIN lockouts and other alerts'),
+        value: status != NotificationStatus.off,
+        onChanged: (v) => ref.read(notificationsControllerProvider.notifier).setEnabled(v),
+      ),
+      if (status == NotificationStatus.blocked)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpace.md),
+          child: InfoBanner(
+            tone: BadgeTone.warning,
+            icon: Icons.notifications_paused_rounded,
+            message: 'Your phone is blocking notifications from ZoeziDesk Staff. Allow them in the '
+                "phone's Settings, under Apps > ZoeziDesk Staff > Notifications.",
+          ),
+        ),
+    ]);
   }
 }
 
