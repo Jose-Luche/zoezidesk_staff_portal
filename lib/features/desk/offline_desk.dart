@@ -258,8 +258,21 @@ class OfflineDesk extends Notifier<OfflineDeskState> {
 /// ends with the session (the queue stays in storage for the next one).
 final offlineDeskProvider = NotifierProvider.autoDispose<OfflineDesk, OfflineDeskState>(OfflineDesk.new);
 
-/// Signing out on a personal phone: the member list and any unsent
-/// check-ins leave with the staff member.
+/// How many offline check-ins are waiting to be sent, read from storage
+/// (the desk itself may not be running, e.g. on the lock screen).
+Future<int> unsentOfflineCheckIns(SecureStore store) async {
+  try {
+    final queued = await store.read(OfflineDesk.queueKey);
+    return queued == null ? 0 : (jsonDecode(queued) as List).length;
+  } catch (_) {
+    return 0;
+  }
+}
+
+/// Deletes the member list and any unsent check-ins: when a staff member
+/// signs out of their own phone, and when a phone stops being the front
+/// desk (set aside, or revoked on the web), so a lost or retired device
+/// doesn't keep the gym's member list.
 Future<void> clearOfflineDesk(Ref ref) async {
   try {
     await ref.read(offlineListFileProvider).delete();

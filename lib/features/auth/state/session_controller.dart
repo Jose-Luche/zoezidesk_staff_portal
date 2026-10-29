@@ -95,6 +95,7 @@ class SessionController extends Notifier<SessionState> {
   Future<void> forgetDevice() async {
     await _auth.signOut();
     await _auth.forgetDevice();
+    await clearOfflineDesk(ref);
     state = const SignedOut();
   }
 

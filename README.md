@@ -48,7 +48,10 @@ connection, a scan is matched against it and the member is let in; a code that i
 list can still be let in with *Let in and record*. The check-ins wait in secure storage
 (they survive the device locking) and are sent with the time the member came as soon as the
 server answers. The desk shows how many are waiting, and any the server refused once sent.
-Signing out on a personal phone sends what it can, then deletes the list and the queue.
+Signing out on a personal phone sends what it can, then deletes the list and the queue. A
+front-desk device deletes them when it stops being the front desk: *Stop using as front desk*
+(which warns about unsent check-ins), or as soon as it finds it was removed on the web, so a lost
+or retired tablet doesn't keep the gym's member list.
 
 ## Signing in
 

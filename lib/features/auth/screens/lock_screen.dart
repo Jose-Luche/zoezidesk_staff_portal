@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_failure.dart';
+import '../../../core/storage/session_storage.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../data/models/staff.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -10,12 +11,20 @@ import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/member_tile.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/state_message.dart';
+import '../../desk/offline_desk.dart';
 import '../state/session_controller.dart';
 import '../widgets/auth_scaffold.dart';
 
-final lockScreenStaffProvider = FutureProvider.autoDispose<List<LockScreenStaff>>(
-  (ref) => ref.watch(authRepositoryProvider).lockScreenStaff(),
-);
+final lockScreenStaffProvider = FutureProvider.autoDispose<List<LockScreenStaff>>((ref) async {
+  try {
+    return await ref.watch(authRepositoryProvider).lockScreenStaff();
+  } on UnauthorizedFailure {
+    // Revoked on the web: the member list goes now, not when someone taps
+    // "Set up again" (a removed tablet may never be touched again).
+    await clearOfflineDesk(ref);
+    rethrow;
+  }
+});
 
 /// The front-desk device between people: tap your name, enter your PIN.
 class LockScreen extends ConsumerWidget {
@@ -125,12 +134,19 @@ class LockScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmForget(BuildContext context, WidgetRef ref) async {
+    final unsent = await unsentOfflineCheckIns(ref.read(secureStoreProvider));
+    if (!context.mounted) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Stop using this as the front desk?'),
-        content: const Text('Staff will sign in here with email and password instead. '
-            'A manager should also remove the device on the web.'),
+        content: Text([
+          'Staff will sign in here with email and password instead. '
+              'A manager should also remove the device on the web.',
+          if (unsent > 0)
+            '${unsent == 1 ? '1 check-in' : '$unsent check-ins'} saved offline and not yet sent '
+                'will be deleted. Sign someone in first to send them.',
+        ].join('\n\n')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Stop')),

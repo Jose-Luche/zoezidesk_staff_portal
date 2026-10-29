@@ -4,9 +4,13 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zoezidesk_staff/core/errors/app_failure.dart';
 import 'package:zoezidesk_staff/core/network/retry_interceptor.dart';
 import 'package:zoezidesk_staff/core/storage/session_storage.dart';
 import 'package:zoezidesk_staff/data/api/staff_api.dart';
+import 'package:zoezidesk_staff/data/models/staff.dart';
+import 'package:zoezidesk_staff/features/auth/screens/lock_screen.dart';
+import 'package:zoezidesk_staff/features/auth/state/session_controller.dart';
 import 'package:zoezidesk_staff/features/desk/offline_desk.dart';
 
 import '../helpers/fakes.dart';
@@ -140,5 +144,55 @@ void main() {
     expect(canCheckInOffline(staffWith(receptionistPermissions)), isTrue);
     expect(canCheckInOffline(staffWith(trainerPermissions, browseAll: false)), isFalse);
     expect(canCheckInOffline(staffWith(trainerPermissions, browseAll: false, shared: true)), isTrue);
+  });
+
+  group('the member list leaves with the front desk', () {
+    const device = FrontDeskDevice(id: 3, name: 'Front desk', gymName: 'Test Gym');
+
+    ProviderContainer enrolledDesk() {
+      file.contents = jsonEncode({'saved_at': DateTime.now().toUtc().toIso8601String(), 'members': [card(1, 'qr-one')]});
+      store.values[OfflineDesk.queueKey] = jsonEncode([
+        QueuedCheckIn(key: 'k1', qrCode: 'qr-one', at: DateTime.now(), name: 'Member 1').toJson(),
+      ]);
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.test'))..httpClientAdapter = adapter;
+      final c = ProviderContainer(overrides: [
+        staffApiProvider.overrideWithValue(StaffApi(dio)),
+        secureStoreProvider.overrideWithValue(store),
+        offlineListFileProvider.overrideWithValue(file),
+      ]);
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    test('unsent check-ins are counted for the warning', () async {
+      enrolledDesk();
+      expect(await unsentOfflineCheckIns(store), 1);
+    });
+
+    test('stopping using the phone as the front desk deletes them', () async {
+      final c = enrolledDesk();
+      await SessionStorage(store).saveDevice('device-token', device);
+      c.read(sessionControllerProvider);
+      await settle();
+
+      await c.read(sessionControllerProvider.notifier).forgetDevice();
+
+      expect(file.contents, isNull);
+      expect(store.values.containsKey(OfflineDesk.queueKey), isFalse);
+    });
+
+    test('a device revoked on the web deletes them without anyone tapping', () async {
+      final c = enrolledDesk();
+      await SessionStorage(store).saveDevice('device-token', device);
+      adapter.reply(401, {'success': false, 'message': 'This device was removed.'});
+
+      final sub = c.listen(lockScreenStaffProvider, (_, _) {});
+      addTearDown(sub.close);
+      await until(() => file.contents == null);
+
+      expect(file.contents, isNull);
+      expect(store.values.containsKey(OfflineDesk.queueKey), isFalse);
+      expect(c.read(lockScreenStaffProvider).error, isA<UnauthorizedFailure>());
+    });
   });
 }
