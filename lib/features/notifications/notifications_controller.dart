@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/notifications/push_messaging.dart';
 import '../../core/router/app_router.dart';
+import '../../core/router/routes.dart';
 import '../../core/storage/device_preferences.dart';
 import '../../data/api/push_devices_api.dart';
 
@@ -116,7 +117,19 @@ class NotificationsController extends Notifier<NotificationStatus> {
       ..add(push.foregroundMessages.listen(_showBanner));
   }
 
-  void _open(PushMessage message) => ref.read(routerProvider).go(message.route);
+  /// A tab is opened directly; any other screen (a class roster) on top of
+  /// the first tab, so Back has somewhere to go.
+  void _open(PushMessage message) {
+    final router = ref.read(routerProvider);
+    final route = message.route;
+    if (allTabs.any((t) => t.path == route)) {
+      router.go(route);
+    } else {
+      router
+        ..go(Routes.home)
+        ..push(route);
+    }
+  }
 
   void _showBanner(PushMessage message) {
     final messenger = ref.read(scaffoldMessengerKeyProvider).currentState;
