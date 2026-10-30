@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/utils/cache.dart';
 import '../../../data/local/app_database.dart';
+import '../../../data/repositories/outbox.dart';
 import '../../../data/models/staff.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../desk/offline_desk.dart';
@@ -80,12 +81,12 @@ class SessionController extends Notifier<SessionState> {
   Future<void> signOut({String? reason}) async {
     final device = state.device;
     final session = state;
-    // A personal phone: send what was checked in offline, then the member
-    // list, anything unsent and the saved screens leave with the staff member.
+    // A personal phone: send what was done offline, then the member list,
+    // anything unsent and the saved screens leave with the staff member.
     if (session is SignedIn && !session.staff.sharedDevice) {
-      if (ref.exists(offlineDeskProvider)) {
+      if (ref.exists(outboxProvider)) {
         try {
-          await ref.read(offlineDeskProvider.notifier).send().timeout(const Duration(seconds: 10));
+          await ref.read(outboxProvider.notifier).flush(force: true).timeout(const Duration(seconds: 10));
         } on TimeoutException {
           // Offline: they are dropped below.
         }

@@ -61,7 +61,12 @@ void main() {
     return sub.read();
   }
 
-  Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
+  /// Waits for a background refresh to land.
+  Future<void> until(bool Function() done) async {
+    for (var i = 0; i < 100 && !done(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
 
   final me = staffWith(receptionistPermissions);
 
@@ -83,7 +88,7 @@ void main() {
     adapter.reply(200, {'n': 2});
     final provider = cachedRead((_) => _count());
     expect((await show(c, provider)).value, 1);
-    await settle();
+    await until(() => c.read(provider).value == 2);
     expect(c.read(provider).value, 2);
   });
 
@@ -95,7 +100,7 @@ void main() {
     final c = await start(me); // nothing queued: offline
     final provider = cachedRead((_) => _count());
     await show(c, provider);
-    await settle();
+    await until(() => c.read(provider).hasError);
 
     final value = c.read(provider);
     expect(value.value, 1);

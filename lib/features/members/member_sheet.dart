@@ -9,6 +9,7 @@ import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../data/models/work.dart';
+import '../../data/repositories/outbox.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/cards.dart';
 import '../../shared/widgets/member_tile.dart';
@@ -19,6 +20,7 @@ import '../../shared/widgets/toast.dart';
 import '../auth/state/session_controller.dart';
 import '../desk/desk_providers.dart';
 import '../payments/pay_sheet.dart';
+import '../sync/queued_actions.dart';
 import 'member_providers.dart';
 import 'note_sheet.dart';
 
@@ -249,6 +251,9 @@ class _Notes extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notes = ref.watch(memberNotesProvider(member.id));
+    final waiting = ref
+        .watch(outboxProvider)
+        .where((i) => i.kind == QueuedKinds.note && i.waiting && i.payload['member_id'] == member.id);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SectionHeading(
         'Trainer notes',
@@ -259,6 +264,7 @@ class _Notes extends ConsumerWidget {
           label: const Text('Add'),
         ),
       ),
+      for (final item in waiting) ...[PendingNoteCard(item: item), const SizedBox(height: AppSpace.sm)],
       AsyncView(
         value: notes,
         onRetry: () => ref.invalidate(memberNotesProvider(member.id)),

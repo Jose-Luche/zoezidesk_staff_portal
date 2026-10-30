@@ -5,14 +5,14 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../core/errors/app_failure.dart';
 import '../../core/storage/session_storage.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../data/models/staff.dart';
-import 'desk_providers.dart';
+import '../../data/repositories/outbox.dart';
+import '../sync/queued_actions.dart';
 
 /// A check-in made with no connection, waiting to be sent.
 class QueuedCheckIn {
@@ -105,32 +105,62 @@ bool canCheckInOffline(StaffProfile staff) =>
 /// with a current membership (QR codes hashed) and refreshes it every half
 /// hour; a scan with no connection is matched against it, the member is let
 /// in, and the check-in is queued with the time they came. Queued check-ins
-/// are sent, oldest first, as soon as the server answers again.
+/// wait in the outbox with every other action and are sent, oldest first,
+/// as soon as the server answers again.
 ///
-/// The queue is in secure storage and survives locking the front-desk
-/// device; signing out on a personal phone deletes the list and the queue
-/// (see [clearOfflineDesk]).
+/// The outbox is in the encrypted database and survives locking the
+/// front-desk device; signing out on a personal phone deletes the list and
+/// the queue (see clearDeviceData).
 class OfflineDesk extends Notifier<OfflineDeskState> {
-  static const queueKey = 'offline_checkins';
+  /// Where the queue was kept before the outbox; moved over on start.
+  static const legacyQueueKey = 'offline_checkins';
   static const listMaxAge = Duration(minutes: 30);
   static const tick = Duration(seconds: 30);
 
   final _members = <String, MemberCard>{};
   Timer? _timer;
-  bool _sending = false;
   bool _refreshing = false;
 
   StaffApi get _api => ref.read(staffApiProvider);
   SecureStore get _store => ref.read(secureStoreProvider);
   OfflineListFile get _file => ref.read(offlineListFileProvider);
+  OutboxController get _outbox => ref.read(outboxProvider.notifier);
 
   @override
   OfflineDeskState build() {
     _timer = Timer.periodic(tick, (_) => _tick());
     ref.onDispose(() => _timer?.cancel());
+    ref.listen(outboxProvider, (_, items) => _fromOutbox(items));
     Future.microtask(_start);
-    return const OfflineDeskState();
+    return OfflineDeskState(
+      pending: _pending(ref.read(outboxProvider)),
+      refused: _refused(ref.read(outboxProvider)),
+    );
   }
+
+  static List<QueuedCheckIn> _pending(List<OutboxItem> items) => [
+        for (final i in items)
+          if (i.kind == QueuedKinds.checkIn && i.waiting)
+            QueuedCheckIn(
+              key: i.key,
+              qrCode: i.payload['qr_code'] as String,
+              at: DateTime.parse(i.payload['at'] as String),
+              name: i.label,
+            ),
+      ];
+
+  static List<RefusedCheckIn> _refused(List<OutboxItem> items) => [
+        for (final i in items)
+          if (i.kind == QueuedKinds.checkIn && i.status == OutboxStatus.failed)
+            RefusedCheckIn(
+              name: i.label ?? 'Unknown QR code',
+              message: i.message ?? '',
+              at: DateTime.parse(i.payload['at'] as String),
+            ),
+      ];
+
+  void _fromOutbox(List<OutboxItem> items) =>
+      state = state.copyWith(pending: _pending(items), refused: _refused(items));
 
   Future<void> _start() async {
     await _load();
@@ -139,37 +169,44 @@ class OfflineDesk extends Notifier<OfflineDeskState> {
 
   Future<void> _tick() async {
     if (!ref.mounted) return;
-    await send();
     final saved = state.listSavedAt;
     if (saved == null || DateTime.now().difference(saved) > listMaxAge) await refreshList();
   }
 
   Future<void> _load() async {
     try {
-      final queued = await _store.read(queueKey);
+      await _moveLegacyQueue();
       final list = await _file.read();
-      if (!ref.mounted) return;
-      DateTime? savedAt;
-      if (list != null) {
-        final json = jsonDecode(list) as Map<String, dynamic>;
-        savedAt = DateTime.parse(json['saved_at'] as String);
-        _members
-          ..clear()
-          ..addEntries([
-            for (final m in json['members'] as List)
-              MapEntry((m as Map<String, dynamic>)['qr_hash'] as String, MemberCard.fromJson(m)),
-          ]);
-      }
-      state = state.copyWith(
-        pending: queued == null
-            ? const []
-            : [for (final e in jsonDecode(queued) as List) QueuedCheckIn.fromJson(e as Map<String, dynamic>)],
-        listSavedAt: savedAt,
-        listSize: _members.length,
-      );
+      if (!ref.mounted || list == null) return;
+      final json = jsonDecode(list) as Map<String, dynamic>;
+      _members
+        ..clear()
+        ..addEntries([
+          for (final m in json['members'] as List)
+            MapEntry((m as Map<String, dynamic>)['qr_hash'] as String, MemberCard.fromJson(m)),
+        ]);
+      state = state.copyWith(listSavedAt: DateTime.parse(json['saved_at'] as String), listSize: _members.length);
     } catch (_) {
       // A damaged file: the next refresh replaces it.
     }
+  }
+
+  /// Check-ins queued by the version before the outbox, kept with their
+  /// keys and times so none is lost or counted twice.
+  Future<void> _moveLegacyQueue() async {
+    final queued = await _store.read(legacyQueueKey);
+    if (queued == null) return;
+    for (final e in jsonDecode(queued) as List) {
+      final c = QueuedCheckIn.fromJson(e as Map<String, dynamic>);
+      await _outbox.enqueue(
+        QueuedKinds.checkIn,
+        {'qr_code': c.qrCode, 'at': c.at.toUtc().toIso8601String()},
+        label: c.name,
+        key: c.key,
+        at: c.at,
+      );
+    }
+    await _store.delete(legacyQueueKey);
   }
 
   /// Downloads the list again. Offline: keeps the one already saved.
@@ -208,75 +245,33 @@ class OfflineDesk extends Notifier<OfflineDeskState> {
 
   /// Queues a check-in made with no connection.
   Future<void> record(String qrCode, {String? name}) async {
-    final entry = QueuedCheckIn(key: const Uuid().v4(), qrCode: qrCode.trim(), at: DateTime.now(), name: name);
-    state = state.copyWith(pending: [...state.pending, entry]);
-    await _save();
+    final at = DateTime.now();
+    await _outbox.enqueue(
+      QueuedKinds.checkIn,
+      {'qr_code': qrCode.trim(), 'at': at.toUtc().toIso8601String()},
+      label: name,
+      at: at,
+    );
   }
 
-  /// Sends queued check-ins, oldest first, until one can't reach the server.
-  Future<void> send() async {
-    if (_sending || state.pending.isEmpty) return;
-    _sending = true;
-    var sent = false;
-    try {
-      while (ref.mounted && state.pending.isNotEmpty) {
-        final entry = state.pending.first;
-        String? refusal;
-        String? name = entry.name;
-        try {
-          final result = await _api.checkIn(qrCode: entry.qrCode, at: entry.at, idempotencyKey: entry.key);
-          name = result.member?.name ?? name;
-          if (!result.success) refusal = result.message;
-        } on ValidationFailure catch (e) {
-          refusal = e.message; // e.g. older than 48 hours
-        } on AppFailure {
-          break; // offline, server trouble or signed out: try again later
-        }
-        if (!ref.mounted) return;
-        sent = true;
-        state = state.copyWith(
-          pending: state.pending.skip(1).toList(),
-          refused: refusal == null
-              ? state.refused
-              : [...state.refused, RefusedCheckIn(name: name ?? 'Unknown QR code', message: refusal, at: entry.at)],
-        );
-        await _save();
-      }
-    } finally {
-      _sending = false;
-      if (sent && ref.mounted) ref.invalidate(todayCheckInsProvider);
-    }
-  }
+  /// Sends what is waiting now, oldest first, until the server can't be reached.
+  Future<void> send() => _outbox.flush(force: true);
 
-  void dismissRefused() => state = state.copyWith(refused: const []);
-
-  Future<void> _save() =>
-      _store.write(queueKey, jsonEncode([for (final e in state.pending) e.toJson()]));
+  Future<void> dismissRefused() => _outbox.dismissRefused(QueuedKinds.checkIn);
 }
 
 /// Watched by the app while someone who may check in offline is signed in;
 /// ends with the session (the queue stays in storage for the next one).
 final offlineDeskProvider = NotifierProvider.autoDispose<OfflineDesk, OfflineDeskState>(OfflineDesk.new);
 
-/// How many offline check-ins are waiting to be sent, read from storage
-/// (the desk itself may not be running, e.g. on the lock screen).
-Future<int> unsentOfflineCheckIns(SecureStore store) async {
-  try {
-    final queued = await store.read(OfflineDesk.queueKey);
-    return queued == null ? 0 : (jsonDecode(queued) as List).length;
-  } catch (_) {
-    return 0;
-  }
-}
-
-/// Deletes the member list and any unsent check-ins: when a staff member
-/// signs out of their own phone, and when a phone stops being the front
-/// desk (set aside, or revoked on the web), so a lost or retired device
-/// doesn't keep the gym's member list.
+/// Deletes the member list (the queue goes with the database, see
+/// clearDeviceData): when a staff member signs out of their own phone, and
+/// when a phone stops being the front desk (set aside, or revoked on the
+/// web), so a lost or retired device doesn't keep the gym's member list.
 Future<void> clearOfflineDesk(Ref ref) async {
   try {
     await ref.read(offlineListFileProvider).delete();
-    await ref.read(secureStoreProvider).delete(OfflineDesk.queueKey);
+    await ref.read(secureStoreProvider).delete(OfflineDesk.legacyQueueKey);
   } catch (_) {
     // Nothing saved, or storage unavailable.
   }

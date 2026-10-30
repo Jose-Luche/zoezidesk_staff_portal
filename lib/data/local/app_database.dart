@@ -28,27 +28,74 @@ class CachedReads extends Table {
   Set<Column> get primaryKey => {owner, key};
 }
 
-@DriftDatabase(tables: [CachedReads])
+/// Something done with no connection (or a dropped one), waiting to reach
+/// the server. Sent in order, oldest first, with the same idempotency key
+/// every time, so a resend after a lost reply counts once.
+@DataClassName('OutboxRow')
+class Outbox extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Whose it is, as for [CachedReads]: only that person (or the desk)
+  /// sends it.
+  TextColumn get owner => text()();
+
+  /// What to do: `checkin`, `attended`, ... (see QueuedActions).
+  TextColumn get kind => text()();
+  TextColumn get payload => text()();
+  TextColumn get idempotencyKey => text()();
+
+  /// What it is about, for the screens: a member's name, say.
+  TextColumn get label => text().nullable()();
+
+  /// pending, sending, sent or failed (the server refused it).
+  TextColumn get status => text()();
+
+  /// Why the server refused it.
+  TextColumn get message => text().nullable()();
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+
+  /// Not before this, after a failed try (backing off).
+  DateTimeColumn get nextAttemptAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+}
+
+@DriftDatabase(tables: [CachedReads, Outbox])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   /// Rows not refreshed for this long (a member opened once) are deleted
   /// when the app starts.
   static const keepFor = Duration(days: 14);
 
+  /// Sent items are kept this long, then deleted.
+  static const keepSentFor = Duration(days: 1);
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) await m.createTable(outbox);
+        },
         beforeOpen: (_) async {
-          final cutoff = DateTime.now().subtract(keepFor);
-          await (delete(cachedReads)..where((r) => r.savedAt.isSmallerThanValue(cutoff))).go();
+          final now = DateTime.now();
+          await (delete(cachedReads)..where((r) => r.savedAt.isSmallerThanValue(now.subtract(keepFor)))).go();
+          await (delete(outbox)
+                ..where((o) => o.status.equals('sent') & o.createdAt.isSmallerThanValue(now.subtract(keepSentFor))))
+              .go();
+          // Cut off mid-send (the app was closed): the server may or may not
+          // have it; the idempotency key makes sending again safe.
+          await (update(outbox)..where((o) => o.status.equals('sending')))
+              .write(const OutboxCompanion(status: Value('pending')));
         },
       );
 
   /// Everything, when the phone is signed out or stops being the front desk.
-  Future<void> wipe() => delete(cachedReads).go();
+  Future<void> wipe() => transaction(() async {
+        await delete(cachedReads).go();
+        await delete(outbox).go();
+      });
 }
 
 /// The database file, encrypted with a random key kept in secure storage.

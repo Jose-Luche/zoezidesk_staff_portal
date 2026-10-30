@@ -7,21 +7,21 @@ import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../data/models/work.dart';
+import '../../data/repositories/outbox.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/cards.dart';
 import '../../shared/widgets/controls.dart';
 import '../../shared/widgets/sheet.dart';
 import '../../shared/widgets/tag.dart';
 import '../../shared/widgets/toast.dart';
+import '../sync/queued_actions.dart';
 import 'member_providers.dart';
 
-/// Opens the note sheet; on save the notes are fetched again and a toast
-/// says so.
+/// Opens the note sheet; on save a toast says whether it is in or waiting
+/// for the connection (the notes refresh once it is sent).
 Future<void> showNoteSheet(BuildContext context, WidgetRef ref, MemberCard member) async {
-  final saved = await showAppSheet<bool>(context, builder: (_) => NoteSheet(member: member));
-  if (saved != true) return;
-  ref.invalidate(memberNotesProvider(member.id));
-  if (context.mounted) showToast(context, 'Note saved');
+  final saved = await showAppSheet<String>(context, builder: (_) => NoteSheet(member: member));
+  if (saved != null && context.mounted) showToast(context, saved);
 }
 
 /// A quick note after a session: type chips, then the text.
@@ -54,18 +54,39 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
       _busy = true;
       _error = null;
     });
+    final now = DateTime.now();
+    final Delivery delivery;
     try {
-      await ref.read(staffApiProvider).addNote(
-            widget.member.id,
-            type: _type,
-            note: _note.text.trim(),
-            sessionDate: DateTime.now(),
-          );
-      if (mounted) Navigator.pop(context, true);
+      delivery = await ref.read(outboxProvider.notifier).submit(
+        QueuedKinds.note,
+        {
+          'member_id': widget.member.id,
+          'type': _type,
+          'note': _note.text.trim(),
+          'session_date': DateTime(now.year, now.month, now.day).toIso8601String(),
+        },
+        label: widget.member.name,
+      );
     } catch (e) {
-      if (mounted) setState(() => _error = failureMessage(e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = failureMessage(e);
+        });
+      }
+      return;
+    }
+    if (!mounted) return;
+    switch (delivery) {
+      case Delivered():
+        Navigator.pop(context, 'Note saved');
+      case Queued():
+        Navigator.pop(context, 'Note saved offline. It goes when the connection is back.');
+      case Refused(:final message):
+        setState(() {
+          _busy = false;
+          _error = message;
+        });
     }
   }
 
@@ -95,6 +116,31 @@ class _NoteSheetState extends ConsumerState<NoteSheet> {
       const SizedBox(height: AppSpace.lg),
       FilledButton(onPressed: _busy ? null : _save, child: Text(_busy ? 'Saving…' : 'Save note')),
     ]);
+  }
+}
+
+/// A note saved offline, not yet sent: shown above the member's notes.
+class PendingNoteCard extends StatelessWidget {
+  const PendingNoteCard({super.key, required this.item});
+
+  final OutboxItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return SurfaceCard(
+      radius: AppRadius.tile,
+      padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.md),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const AppTag(label: 'Pending', tone: Tone.warning),
+          const SizedBox(width: AppSpace.sm),
+          Flexible(child: Text('Waiting to send', style: text.bodySmall)),
+        ]),
+        const SizedBox(height: AppSpace.sm),
+        Text(item.payload['note'] as String, style: text.bodyMedium),
+      ]),
+    );
   }
 }
 

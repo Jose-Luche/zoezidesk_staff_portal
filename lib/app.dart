@@ -8,6 +8,7 @@ import 'core/router/routes.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_controller.dart';
 import 'core/utils/cache.dart';
+import 'data/repositories/outbox.dart';
 import 'features/auth/state/session_controller.dart';
 import 'features/classes/classes_screen.dart';
 import 'features/desk/offline_desk.dart';
@@ -25,6 +26,8 @@ class ZoeziStaffApp extends ConsumerWidget {
     // Personal phones only: the front-desk device would show one person's
     // alerts to whoever is at the desk.
     if (session is SignedIn && !shared) ref.watch(notificationsControllerProvider);
+    // Actions done offline go as soon as the server answers.
+    if (session is SignedIn) ref.watch(outboxProvider);
     if (session is SignedIn && canCheckInOffline(session.staff)) ref.watch(offlineDeskProvider);
     ref.listen(cacheOwnerProvider, (_, owner) {
       if (owner != null) _prefetchTabs(ref);

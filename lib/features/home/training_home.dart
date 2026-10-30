@@ -15,6 +15,7 @@ import '../classes/classes_screen.dart';
 import '../members/member_providers.dart';
 import '../members/member_sheet.dart';
 import '../members/note_sheet.dart';
+import '../sync/queued_actions_cards.dart';
 import 'home_screen.dart';
 
 /// A trainer's day (design.md §5.2): who needs a nudge, their classes, and
@@ -46,6 +47,7 @@ class TrainingHome extends ConsumerWidget {
                 ? ' '
                 : '${d.clients.length} client${d.clients.length == 1 ? '' : 's'} · ${d.checkInsToday} in today',
           ),
+          const QueuedActionsCards(),
           AsyncView(
             value: dashboard,
             onRetry: () => ref.invalidate(trainerDashboardProvider),

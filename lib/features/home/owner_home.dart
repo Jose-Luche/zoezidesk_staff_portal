@@ -14,6 +14,7 @@ import '../../shared/widgets/day_bars.dart';
 import '../../shared/widgets/skeleton.dart';
 import '../auth/state/session_controller.dart';
 import '../desk/follow_ups_screen.dart';
+import '../sync/queued_actions_cards.dart';
 import 'home_screen.dart';
 
 final todayReportProvider = cachedRead((_) => StaffReads.todayReport);
@@ -58,6 +59,7 @@ class OwnerHome extends ConsumerWidget {
             subtitle: '${DateFormat('EEEE d MMM').format(now)}'
                 '${today.hasValue ? ' · ${today.requireValue.kpi('checkins_today')} in so far' : ''}',
           ),
+          const QueuedActionsCards(),
           const SizedBox(height: AppSpace.xxl),
           AsyncView(
             value: today,

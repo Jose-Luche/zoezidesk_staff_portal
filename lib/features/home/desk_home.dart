@@ -8,6 +8,7 @@ import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/members.dart';
 import '../../data/models/work.dart';
+import '../../data/repositories/outbox.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons.dart';
 import '../../shared/widgets/cards.dart';
@@ -23,6 +24,8 @@ import '../desk/offline_desk.dart';
 import '../members/member_sheet.dart';
 import '../members/register_sheet.dart';
 import '../payments/pay_sheet.dart';
+import '../sync/queued_actions.dart';
+import '../sync/queued_actions_cards.dart';
 import 'home_screen.dart';
 
 /// The front desk (design.md §5.1): scan first, then whatever needs a
@@ -161,15 +164,22 @@ class _NeedsYou extends ConsumerStatefulWidget {
 
 class _NeedsYouState extends ConsumerState<_NeedsYou> {
   bool _sending = false;
+  bool _sendingChanges = false;
+
+  Future<void> _sendChanges() async {
+    setState(() => _sendingChanges = true);
+    await sendQueued(context, ref);
+    if (mounted) setState(() => _sendingChanges = false);
+  }
 
   Future<void> _send() async {
-    final desk = ref.read(offlineDeskProvider.notifier);
-    final before = ref.read(offlineDeskProvider).pending.length;
+    final outbox = ref.read(outboxProvider.notifier);
+    final before = await outbox.waitingCount(kind: QueuedKinds.checkIn);
     setState(() => _sending = true);
-    await desk.send();
+    await outbox.flush(force: true);
+    final sent = before - await outbox.waitingCount(kind: QueuedKinds.checkIn);
     if (!mounted) return;
     setState(() => _sending = false);
-    final sent = before - ref.read(offlineDeskProvider).pending.length;
     showToast(
       context,
       sent == 0 ? 'Still offline. They go when the connection is back.' : '$sent check-in${sent == 1 ? '' : 's'} sent',
@@ -224,6 +234,7 @@ class _NeedsYouState extends ConsumerState<_NeedsYou> {
           actionLabel: 'Dismiss',
           onAction: () => ref.read(offlineDeskProvider.notifier).dismissRefused(),
         ),
+      ...queuedActionCards(context, ref, sending: _sendingChanges, onSend: _sendChanges),
       for (final c in full)
         ActionCard(
           tone: Tone.neutral,

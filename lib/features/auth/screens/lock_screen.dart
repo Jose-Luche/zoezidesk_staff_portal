@@ -3,18 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_failure.dart';
-import '../../../core/storage/session_storage.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../data/local/app_database.dart';
 import '../../../data/models/staff.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/outbox.dart';
 import '../../../shared/widgets/async_view.dart';
 import '../../../shared/widgets/cards.dart';
 import '../../../shared/widgets/member_tile.dart';
 import '../../../shared/widgets/sheet.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/state_message.dart';
-import '../../desk/offline_desk.dart';
 import '../state/session_controller.dart';
 import '../widgets/auth_scaffold.dart';
 
@@ -135,7 +135,7 @@ class LockScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmForget(BuildContext context, WidgetRef ref) async {
-    final unsent = await unsentOfflineCheckIns(ref.read(secureStoreProvider));
+    final unsent = await unsentActions(ref.read(appDatabaseProvider), 'desk');
     if (!context.mounted) return;
     final ok = await showDialog<bool>(
       context: context,
@@ -145,7 +145,7 @@ class LockScreen extends ConsumerWidget {
           'Staff will sign in here with email and password instead. '
               'A manager should also remove the device on the web.',
           if (unsent > 0)
-            '${unsent == 1 ? '1 check-in' : '$unsent check-ins'} saved offline and not yet sent '
+            '${unsent == 1 ? '1 check-in or class change' : '$unsent check-ins and class changes'} saved offline and not yet sent '
                 'will be deleted. Sign someone in first to send them.',
         ].join('\n\n')),
         actions: [

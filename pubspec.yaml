@@ -37,6 +37,8 @@ dependencies:
   # The offline cache (screens' last data), encrypted on the device
   drift: ^2.35.3
   sqlite3: ^3.8.0
+  # A hint to send queued actions as soon as the connection is back
+  connectivity_plus: ^7.3.2
 
 dev_dependencies:
   flutter_test:

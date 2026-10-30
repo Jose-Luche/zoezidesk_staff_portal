@@ -7,6 +7,7 @@ import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../data/models/work.dart';
+import '../../data/repositories/outbox.dart';
 import '../../data/repositories/read_cache.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons.dart';
@@ -21,6 +22,7 @@ import '../../shared/widgets/tag.dart';
 import '../../shared/widgets/toast.dart';
 import '../desk/desk_providers.dart';
 import '../members/member_sheet.dart';
+import '../sync/queued_actions.dart';
 
 final classesDayProvider = NotifierProvider.autoDispose<_Day, DateTime>(_Day.new);
 
@@ -210,37 +212,47 @@ class RosterView extends ConsumerWidget {
   /// The class, when known, for the title line.
   final ClassItem? item;
 
-  Future<void> _run(BuildContext context, WidgetRef ref, Future<void> Function() action, {String? done}) async {
-    try {
-      await action();
-      ref
-        ..invalidate(rosterProvider(classId))
-        ..invalidate(classesProvider)
-        ..invalidate(todayClassesProvider);
-      if (done != null && context.mounted) showToast(context, done);
-    } catch (e) {
-      if (context.mounted) showToast(context, failureMessage(e));
-    }
+  /// Through the outbox: sent now when the server answers, otherwise kept
+  /// and shown as pending until it does.
+  Future<void> _submit(
+    BuildContext context,
+    WidgetRef ref,
+    String kind,
+    MemberCard member, {
+    Map<String, dynamic> extra = const {},
+    String? Function(Object? result)? done,
+  }) async {
+    final delivery = await ref
+        .read(outboxProvider.notifier)
+        .submit(kind, {'class_id': classId, 'member_id': member.id, ...extra}, label: member.name);
+    if (!context.mounted) return;
+    final message = switch (delivery) {
+      Delivered(:final result) => done?.call(result),
+      Refused(:final message) => message,
+      Queued() => "Saved offline. It goes when the connection is back.",
+    };
+    if (message != null) showToast(context, message);
   }
 
   Future<void> _book(BuildContext context, WidgetRef ref) async {
     final member = await showAppSheet<MemberCard>(context, builder: (_) => const FindMemberSheet(title: 'Book who?'));
     if (member == null || !context.mounted) return;
-    final api = ref.read(staffApiProvider);
-    String? message;
-    await _run(context, ref, () async => message = await api.bookClass(classId, member.id));
-    if (message != null && context.mounted) showToast(context, message!);
+    await _submit(context, ref, QueuedKinds.book, member, done: (result) => result as String?);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final api = ref.read(staffApiProvider);
     final text = Theme.of(context).textTheme;
     final p = context.palette;
     final c = item;
     final inToday = {
       for (final ci in ref.watch(todayCheckInsProvider).value?.checkIns ?? const <TodayCheckIn>[]) ci.member.id: ci.at,
     };
+    // Changes to this class still waiting to send, latest last.
+    final waiting = ref.watch(outboxProvider).where((i) => i.waiting && i.payload['class_id'] == classId).toList();
+    OutboxItem? waitingFor(int memberId) =>
+        waiting.where((i) => i.payload['member_id'] == memberId && i.kind != QueuedKinds.book).lastOrNull;
+    final bookingsWaiting = waiting.where((i) => i.kind == QueuedKinds.book).toList();
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (c != null)
@@ -278,11 +290,19 @@ class RosterView extends ConsumerWidget {
               for (final b in bookings)
                 _RosterRow(
                   member: b.member,
-                  came: b.status == 'attended',
+                  came: switch (waitingFor(b.member.id)) {
+                    OutboxItem(kind: QueuedKinds.attended, :final payload) => payload['attended'] == true,
+                    _ => b.status == 'attended',
+                  },
+                  pending: switch (waitingFor(b.member.id)?.kind) {
+                    QueuedKinds.attended => 'Waiting to send',
+                    QueuedKinds.cancelBooking => 'Cancelling · waiting to send',
+                    _ => null,
+                  },
                   inSince: inToday[b.member.id],
-                  onTick: (v) => _run(context, ref, () => api.setAttended(classId, b.member.id, attended: v)),
-                  onCancel: () => _run(context, ref, () => api.cancelBooking(classId, b.member.id),
-                      done: "${firstName(b.member.name)}'s booking cancelled"),
+                  onTick: (v) => _submit(context, ref, QueuedKinds.attended, b.member, extra: {'attended': v}),
+                  onCancel: () => _submit(context, ref, QueuedKinds.cancelBooking, b.member,
+                      done: (_) => "${firstName(b.member.name)}'s booking cancelled"),
                 ),
               if (more > 0)
                 Padding(
@@ -290,6 +310,20 @@ class RosterView extends ConsumerWidget {
                   child: Text('+ $more more booked from the members app', style: text.bodySmall),
                 ),
             ],
+            if (bookingsWaiting.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpace.sm, left: AppSpace.sm),
+                child: Row(children: [
+                  const AppTag(label: 'Pending', tone: Tone.warning),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: Text(
+                      'Booking ${bookingsWaiting.map((i) => i.label ?? 'a member').join(', ')}: waiting to send',
+                      style: text.bodySmall,
+                    ),
+                  ),
+                ]),
+              ),
             const SizedBox(height: AppSpace.xl),
             OutlinedButton.icon(
               onPressed: () => _book(context, ref),
@@ -310,10 +344,14 @@ class _RosterRow extends StatelessWidget {
     required this.inSince,
     required this.onTick,
     required this.onCancel,
+    this.pending,
   });
 
   final MemberCard member;
   final bool came;
+
+  /// A change saved offline and not yet sent, said in place of the status.
+  final String? pending;
   final DateTime? inSince;
   final ValueChanged<bool> onTick;
   final VoidCallback onCancel;
@@ -333,15 +371,17 @@ class _RosterRow extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(member.name, style: text.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
               Text(
-                came
-                    ? 'Came'
-                    : inSince != null
-                        ? 'In the building since ${formatTime(inSince!)}'
-                        : 'Booked',
+                pending ??
+                    (came
+                        ? 'Came'
+                        : inSince != null
+                            ? 'In the building since ${formatTime(inSince!)}'
+                            : 'Booked'),
                 style: text.bodySmall,
               ),
             ]),
           ),
+          if (pending != null) const AppTag(label: 'Pending', tone: Tone.warning),
           PopupMenuButton<String>(
             tooltip: 'More',
             icon: const Icon(AppIcons.more, size: AppIconSize.md),

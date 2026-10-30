@@ -45,8 +45,8 @@ summary, PIN lockouts).
 The front-desk device (and staff who may browse all members) keeps a list of members with
 a current membership, refreshed every half hour; QR codes are saved only as hashes. With no
 connection, a scan is matched against it and the member is let in; a code that isn't on the
-list can still be let in with *Let in and record*. The check-ins wait in secure storage
-(they survive the device locking) and are sent with the time the member came as soon as the
+list can still be let in with *Let in and record*. The check-ins wait in the outbox (below;
+they survive the device locking) and are sent with the time the member came as soon as the
 server answers. The desk shows how many are waiting, and any the server refused once sent.
 Signing out on a personal phone sends what it can, then deletes the list and the queue. A
 front-desk device deletes them when it stops being the front desk: *Stop using as front desk*
@@ -65,6 +65,20 @@ are shared by everyone who signs in there; on a personal phone they belong to th
 and are deleted when they sign out, as is everything when a phone stops being the front
 desk. Rows not refreshed for 14 days are dropped. After changing the tables, run
 `dart run build_runner build`.
+
+## Actions done offline
+
+Check-ins, class bookings, cancelling a booking, ticking off who came, and trainer notes go
+through an outbox (`lib/data/repositories/outbox.dart`, kinds in
+`lib/features/sync/queued_actions.dart`). Each is saved in the encrypted database with an
+idempotency key and sent at once; with no connection it stays *pending*, shown on the roster,
+the member's notes and Home, and is sent in order, oldest first, when the server answers again:
+on every new action, every half minute (backing off from 5 seconds to 5 minutes), and when the
+phone's connection comes back (`connectivity_plus`, a hint only). A refusal (4xx) is shown with
+the server's reason until dismissed; offline, timeouts, 5xx, 409 and 429 are tried again later.
+Only the person who did it (or the desk) sends it. Payments, registering members, converting
+enquiries and enquiry follow-ups stay online only; follow-ups can be queued once the backend
+adds its idempotency middleware to `POST /staff/leads/{id}/follow-up`.
 
 ## Signing in
 

@@ -158,8 +158,9 @@ class StaffApi {
   static const _uuid = Uuid();
 
   /// A fresh key per user action. Reused by RetryInterceptor on retries, so
-  /// a payment on a weak connection is never taken twice.
-  static Options _once() => Options(headers: {RetryInterceptor.idempotencyHeader: _uuid.v4()});
+  /// a payment on a weak connection is never taken twice. An action waiting
+  /// in the outbox passes its own [key], the same on every try.
+  static Options _once([String? key]) => Options(headers: {RetryInterceptor.idempotencyHeader: key ?? _uuid.v4()});
 
   Future<Map<String, dynamic>> _get(String path, [Map<String, dynamic>? query]) => guardRequest(() async {
         final res = await _dio.get<Map<String, dynamic>>(path, queryParameters: query);
@@ -408,17 +409,20 @@ class StaffApi {
   Future<List<({MemberCard member, String status})>> roster(int classId) => fetch(StaffReads.roster(classId));
 
   /// Books a member into a class. Returns the server's message (e.g. already booked).
-  Future<String> bookClass(int classId, int memberId) => guardRequest(() async {
+  Future<String> bookClass(int classId, int memberId, {String? idempotencyKey}) => guardRequest(() async {
         final res = await _dio.post<Map<String, dynamic>>('/staff/classes/$classId/bookings',
-            data: {'member_id': memberId}, options: _once());
+            data: {'member_id': memberId}, options: _once(idempotencyKey));
         return res.data!['message'] as String? ?? 'Booked.';
       });
 
-  Future<void> cancelBooking(int classId, int memberId) =>
-      guardRequest(() => _dio.delete<void>('/staff/classes/$classId/bookings/$memberId'));
+  // Cancelling and ticking off are the same however often they are sent;
+  // the key lets RetryInterceptor retry them.
+  Future<void> cancelBooking(int classId, int memberId, {String? idempotencyKey}) => guardRequest(
+      () => _dio.delete<void>('/staff/classes/$classId/bookings/$memberId', options: _once(idempotencyKey)));
 
-  Future<void> setAttended(int classId, int memberId, {required bool attended}) => guardRequest(
-      () => _dio.put<void>('/staff/classes/$classId/bookings/$memberId/attended', data: {'attended': attended}));
+  Future<void> setAttended(int classId, int memberId, {required bool attended, String? idempotencyKey}) =>
+      guardRequest(() => _dio.put<void>('/staff/classes/$classId/bookings/$memberId/attended',
+          data: {'attended': attended}, options: _once(idempotencyKey)));
 
   // ── Trainers ──────────────────────────────────────────────────────
 
@@ -428,7 +432,13 @@ class StaffApi {
 
   Future<List<TrainerNote>> notes(int memberId) => fetch(StaffReads.notes(memberId));
 
-  Future<void> addNote(int memberId, {required String type, required String note, required DateTime sessionDate}) =>
+  Future<void> addNote(
+    int memberId, {
+    required String type,
+    required String note,
+    required DateTime sessionDate,
+    String? idempotencyKey,
+  }) =>
       guardRequest(() => _dio.post<void>('/staff/members/$memberId/notes',
           data: {
             'type': type,
@@ -436,7 +446,7 @@ class StaffApi {
             'session_date':
                 '${sessionDate.year}-${sessionDate.month.toString().padLeft(2, '0')}-${sessionDate.day.toString().padLeft(2, '0')}',
           },
-          options: _once()));
+          options: _once(idempotencyKey)));
 
   Future<void> deleteNote(int noteId) => guardRequest(() => _dio.delete<void>('/staff/notes/$noteId'));
 
