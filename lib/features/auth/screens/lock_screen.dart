@@ -22,9 +22,9 @@ final lockScreenStaffProvider = FutureProvider.autoDispose<List<LockScreenStaff>
   try {
     return await ref.watch(authRepositoryProvider).lockScreenStaff();
   } on UnauthorizedFailure {
-    // Revoked on the web: the member list goes now, not when someone taps
+    // Revoked on the web: the gym's data goes now, not when someone taps
     // "Set up again" (a removed tablet may never be touched again).
-    await clearOfflineDesk(ref);
+    await clearDeviceData(ref);
     rethrow;
   }
 });

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_failure.dart';
+import '../../../core/utils/cache.dart';
+import '../../../data/local/app_database.dart';
 import '../../../data/models/staff.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../desk/offline_desk.dart';
@@ -42,6 +44,10 @@ class SessionController extends Notifier<SessionState> {
 
   @override
   SessionState build() {
+    // Screens' cached data belongs to whoever was signed in.
+    listenSelf((prev, next) {
+      if (prev != null && cacheOwnerOf(prev) != cacheOwnerOf(next)) ref.read(sessionCacheProvider).clear();
+    });
     _restore();
     return const SessionLoading();
   }
@@ -75,7 +81,7 @@ class SessionController extends Notifier<SessionState> {
     final device = state.device;
     final session = state;
     // A personal phone: send what was checked in offline, then the member
-    // list and anything unsent leave with the staff member.
+    // list, anything unsent and the saved screens leave with the staff member.
     if (session is SignedIn && !session.staff.sharedDevice) {
       if (ref.exists(offlineDeskProvider)) {
         try {
@@ -84,7 +90,7 @@ class SessionController extends Notifier<SessionState> {
           // Offline: they are dropped below.
         }
       }
-      await clearOfflineDesk(ref);
+      await clearDeviceData(ref);
     }
     await _auth.signOut();
     state = SignedOut(device: device, reason: reason);
@@ -95,7 +101,7 @@ class SessionController extends Notifier<SessionState> {
   Future<void> forgetDevice() async {
     await _auth.signOut();
     await _auth.forgetDevice();
-    await clearOfflineDesk(ref);
+    await clearDeviceData(ref);
     state = const SignedOut();
   }
 
@@ -121,3 +127,16 @@ final staffProvider = Provider<StaffProfile>((ref) {
   if (session is! SignedIn) throw StateError('Not signed in');
   return session.staff;
 });
+
+/// Deletes the gym's data from this device: the offline member list, unsent
+/// check-ins and every saved screen. When a staff member signs out of their
+/// own phone, and when a phone stops being the front desk (set aside, or
+/// revoked on the web).
+Future<void> clearDeviceData(Ref ref) async {
+  await clearOfflineDesk(ref);
+  try {
+    await ref.read(appDatabaseProvider).wipe();
+  } catch (_) {
+    // Never opened, or storage unavailable.
+  }
+}

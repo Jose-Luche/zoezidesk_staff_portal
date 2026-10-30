@@ -6,6 +6,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/url_opener.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
+import '../../data/repositories/read_cache.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons.dart';
 import '../../shared/widgets/member_tile.dart';
@@ -17,9 +18,7 @@ import '../../shared/widgets/toast.dart';
 import '../auth/state/session_controller.dart';
 import '../members/member_sheet.dart';
 
-final followUpsProvider = FutureProvider.autoDispose<({List<FollowUp> expiring, List<FollowUp> lapsed})>(
-  (ref) => ref.watch(staffApiProvider).followUps(),
-);
+final followUpsProvider = cachedRead((_) => StaffReads.followUps);
 
 const _intro = 'Ending in 7 days or lapsed. A reminder goes by WhatsApp.';
 

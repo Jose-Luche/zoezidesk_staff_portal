@@ -24,8 +24,24 @@ Dio buildDio({
     ),
   );
   auth.attach(dio);
-  dio.interceptors.addAll([auth, RetryInterceptor(dio)]);
+  dio.interceptors.addAll([auth, const ReadTimeoutInterceptor(), RetryInterceptor(dio)]);
   return dio;
+}
+
+/// Reads give up on connecting sooner than writes, so a dead connection
+/// shows offline (or what was loaded earlier) in seconds rather than a
+/// minute of retries. Writes keep the longer wait: a payment on a weak
+/// connection should get through.
+class ReadTimeoutInterceptor extends Interceptor {
+  const ReadTimeoutInterceptor({this.connectTimeout = const Duration(seconds: 5)});
+
+  final Duration connectTimeout;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.method.toUpperCase() == 'GET') options.connectTimeout = connectTimeout;
+    handler.next(options);
+  }
 }
 
 final dioProvider = Provider<Dio>((ref) {

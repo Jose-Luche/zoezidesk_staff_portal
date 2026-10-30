@@ -2,12 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
+import '../../data/repositories/read_cache.dart';
 import '../members/member_providers.dart';
 import '../payments/payment_providers.dart';
 
-final todayCheckInsProvider = FutureProvider.autoDispose<({int count, List<TodayCheckIn> checkIns})>(
-  (ref) => ref.watch(staffApiProvider).todayCheckIns(),
-);
+final todayCheckInsProvider = cachedRead((_) => StaffReads.todayCheckIns);
 
 /// Members matching a front-desk search (3 or more characters).
 final lookupProvider = FutureProvider.autoDispose.family<List<MemberCard>, String>(

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
+import '../../data/repositories/read_cache.dart';
 
 /// The member and the plans, to take a payment.
 final paySetupProvider = FutureProvider.autoDispose.family<({MemberCard member, Plans plans}), int>((ref, memberId) async {
@@ -27,7 +28,7 @@ class ShiftQueryController extends Notifier<ShiftQuery> {
   void setStaff(int? staffId) => state = (day: state.day, staffId: staffId);
 }
 
-final shiftProvider = FutureProvider.autoDispose<Shift>((ref) {
+final shiftProvider = cachedRead((ref) {
   final q = ref.watch(shiftQueryProvider);
-  return ref.watch(staffApiProvider).shift(date: q.day, staffId: q.staffId);
+  return StaffReads.shift(date: q.day, staffId: q.staffId);
 });

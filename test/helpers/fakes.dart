@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/native.dart';
+import 'package:flutter_riverpod/misc.dart';
+import 'package:zoezidesk_staff/data/local/app_database.dart';
 import 'package:zoezidesk_staff/core/storage/session_storage.dart';
 import 'package:zoezidesk_staff/data/models/staff.dart';
 
@@ -18,15 +22,26 @@ class InMemorySecureStore implements SecureStore {
   Future<void> delete(String key) async => values.remove(key);
 }
 
+/// The cache database in memory, for a test's ProviderContainer.
+Override memoryDatabase() {
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  return appDatabaseProvider.overrideWith((ref) {
+    final db = AppDatabase(NativeDatabase.memory());
+    ref.onDispose(db.close);
+    return db;
+  });
+}
+
 /// A staff member with exactly [permissions] (see the backend's StaffPermissions).
 StaffProfile staffWith(
   Set<String> permissions, {
+  int id = 7,
   bool browseAll = true,
   bool shared = false,
   List<String> roles = const ['receptionist'],
 }) =>
     StaffProfile(
-      id: 7,
+      id: id,
       name: 'Amina Wanjiru',
       email: 'amina@test.com',
       roles: roles,

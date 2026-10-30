@@ -6,6 +6,7 @@ import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/work.dart';
+import '../../data/repositories/read_cache.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/cards.dart';
 import '../../shared/widgets/controls.dart';
@@ -15,9 +16,7 @@ import '../auth/state/session_controller.dart';
 import '../desk/follow_ups_screen.dart';
 import 'home_screen.dart';
 
-final todayReportProvider = FutureProvider.autoDispose<TodayReport>(
-  (ref) => ref.watch(staffApiProvider).todayReport(),
-);
+final todayReportProvider = cachedRead((_) => StaffReads.todayReport);
 
 final reportPeriodProvider = NotifierProvider.autoDispose<_Period, String>(_Period.new);
 
@@ -29,9 +28,7 @@ class _Period extends Notifier<String> {
 }
 
 /// A period's figures: this_week, this_month or last_month.
-final periodReportProvider = FutureProvider.autoDispose.family<PeriodReport, String>(
-  (ref, period) => ref.watch(staffApiProvider).periodReport(period),
-);
+final periodReportProvider = cachedReadFamily((_, String period) => StaffReads.periodReport(period));
 
 /// Owners and managers (design.md §5.3): today at a glance, the week's
 /// check-ins, then a period's revenue. Tables and exports stay on the web.

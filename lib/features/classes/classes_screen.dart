@@ -7,6 +7,7 @@ import '../../core/utils/formatters.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
 import '../../data/models/work.dart';
+import '../../data/repositories/read_cache.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons.dart';
 import '../../shared/widgets/cards.dart';
@@ -33,19 +34,15 @@ class _Day extends Notifier<DateTime> {
   void move(int days) => state = state.add(Duration(days: days));
 }
 
-final classesProvider = FutureProvider.autoDispose<List<ClassItem>>(
-  (ref) => ref.watch(staffApiProvider).classes(ref.watch(classesDayProvider)),
-);
+final classesProvider = cachedRead((ref) => StaffReads.classes(ref.watch(classesDayProvider)));
 
 /// Today's classes whatever day the Classes tab shows (for Home).
-final todayClassesProvider = FutureProvider.autoDispose<List<ClassItem>>((ref) {
+final todayClassesProvider = cachedRead((_) {
   final now = DateTime.now();
-  return ref.watch(staffApiProvider).classes(DateTime(now.year, now.month, now.day));
+  return StaffReads.classes(DateTime(now.year, now.month, now.day));
 });
 
-final rosterProvider = FutureProvider.autoDispose.family<List<({MemberCard member, String status})>, int>(
-  (ref, id) => ref.watch(staffApiProvider).roster(id),
-);
+final rosterProvider = cachedReadFamily((_, int id) => StaffReads.roster(id));
 
 bool _isFull(ClassItem c) => c.status != 'cancelled' && c.booked >= c.capacity;
 

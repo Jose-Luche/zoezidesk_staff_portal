@@ -56,6 +56,7 @@ void main() {
       staffApiProvider.overrideWithValue(StaffApi(dio)),
       secureStoreProvider.overrideWithValue(store),
       offlineListFileProvider.overrideWithValue(file),
+      memoryDatabase(),
     ]);
     addTearDown(c.dispose);
     c.listen(offlineDeskProvider, (_, _) {});
@@ -159,6 +160,7 @@ void main() {
         staffApiProvider.overrideWithValue(StaffApi(dio)),
         secureStoreProvider.overrideWithValue(store),
         offlineListFileProvider.overrideWithValue(file),
+        memoryDatabase(),
       ]);
       addTearDown(c.dispose);
       return c;

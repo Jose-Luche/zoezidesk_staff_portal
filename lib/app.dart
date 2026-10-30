@@ -4,10 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
+import 'core/router/routes.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_controller.dart';
+import 'core/utils/cache.dart';
 import 'features/auth/state/session_controller.dart';
+import 'features/classes/classes_screen.dart';
 import 'features/desk/offline_desk.dart';
+import 'features/members/member_providers.dart';
 import 'features/notifications/notifications_controller.dart';
 import 'shared/widgets/toast.dart';
 
@@ -22,6 +26,9 @@ class ZoeziStaffApp extends ConsumerWidget {
     // alerts to whoever is at the desk.
     if (session is SignedIn && !shared) ref.watch(notificationsControllerProvider);
     if (session is SignedIn && canCheckInOffline(session.staff)) ref.watch(offlineDeskProvider);
+    ref.listen(cacheOwnerProvider, (_, owner) {
+      if (owner != null) _prefetchTabs(ref);
+    });
 
     return MaterialApp.router(
       title: 'ZoeziDesk Staff',
@@ -35,6 +42,24 @@ class ZoeziStaffApp extends ConsumerWidget {
         child: ToastHost(child: shared ? IdleLock(child: child!) : child!),
       ),
     );
+  }
+}
+
+/// Loads the other tabs' first screen as soon as someone signs in, so the
+/// first switch to them shows data instead of a skeleton. They stay cached
+/// (see [CacheFor]); a failure here is left for the tab to show.
+void _prefetchTabs(WidgetRef ref) {
+  final session = ref.read(sessionControllerProvider);
+  if (session is! SignedIn) return;
+  for (final tab in tabsFor(session.staff)) {
+    switch (tab.path) {
+      case Routes.members:
+        ref.read(membersPageProvider((search: '', page: 1)).future).ignore();
+      case Routes.clients:
+        ref.read(trainerDashboardProvider.future).ignore();
+      case Routes.classes:
+        ref.read(classesProvider.future).ignore();
+    }
   }
 }
 

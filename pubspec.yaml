@@ -34,12 +34,24 @@ dependencies:
   image_picker: ^1.2.1
   # Lucide icons; the 600 weight is the design's heavy stroke
   lucide_icons_flutter: 3.1.25
+  # The offline cache (screens' last data), encrypted on the device
+  drift: ^2.35.3
+  sqlite3: ^3.8.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   mocktail: ^1.0.5
+  drift_dev: ^2.35.2
+  build_runner: ^2.17.1
+
+# SQLite3MultipleCiphers in place of plain SQLite, so the cache can be
+# encrypted (PRAGMA key). MIT licence, no OpenSSL.
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
 
 flutter:
   uses-material-design: true

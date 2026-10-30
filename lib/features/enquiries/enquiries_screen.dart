@@ -10,6 +10,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/url_opener.dart';
 import '../../data/api/staff_api.dart';
 import '../../data/models/members.dart';
+import '../../data/repositories/read_cache.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/cards.dart';
 import '../../shared/widgets/controls.dart';
@@ -23,7 +24,7 @@ import '../auth/state/session_controller.dart';
 import '../members/member_providers.dart';
 import '../payments/pay_sheet.dart';
 
-final enquiriesProvider = FutureProvider.autoDispose<List<Enquiry>>((ref) => ref.watch(staffApiProvider).enquiries());
+final enquiriesProvider = cachedRead((_) => StaffReads.enquiries);
 
 /// Open walk-in enquiries, follow-ups due first: call, WhatsApp, log how it
 /// went, or register them as a member.

@@ -53,6 +53,101 @@ class AlreadyEnquired extends EnquiryResult {
   final Enquiry enquiry;
 }
 
+/// A GET the app can keep for offline: the request, and how to read its
+/// answer. The answer is cached as the server sent it and read back with
+/// [parse], the same as a live one.
+class ApiRead<T> {
+  const ApiRead(this.path, this.parse, {this.query = const {}, this.keep = true});
+
+  final String path;
+  final Map<String, dynamic> query;
+  final T Function(Map<String, dynamic> json) parse;
+
+  /// False for answers that aren't worth keeping, like a search as it is typed.
+  final bool keep;
+
+  /// The path and query, in a fixed order.
+  String get key {
+    final names = query.keys.toList()..sort();
+    return names.isEmpty ? path : '$path?${[for (final n in names) '$n=${query[n]}'].join('&')}';
+  }
+}
+
+String _day(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// The screens' reads, cached for offline by ReadCache.
+abstract final class StaffReads {
+  static const todayCheckIns = ApiRead('/staff/checkins/today', _todayCheckIns);
+
+  static ({int count, List<TodayCheckIn> checkIns}) _todayCheckIns(Map<String, dynamic> json) => (
+        count: json['count'] as int,
+        checkIns: [for (final c in json['checkins'] as List) TodayCheckIn.fromJson(c as Map<String, dynamic>)],
+      );
+
+  /// Only the full list is kept; searches are typed live.
+  static ApiRead<({List<MemberCard> members, bool onlyAssigned, int lastPage})> members({String? search, int page = 1}) =>
+      ApiRead('/staff/members', _members, query: {'search': ?search, 'page': page}, keep: search == null);
+
+  static ({List<MemberCard> members, bool onlyAssigned, int lastPage}) _members(Map<String, dynamic> json) => (
+        members: [for (final m in json['members'] as List) MemberCard.fromJson(m as Map<String, dynamic>)],
+        onlyAssigned: json['only_assigned'] as bool? ?? false,
+        lastPage: (json['meta'] as Map)['last_page'] as int,
+      );
+
+  static ApiRead<MemberProfile> member(int id) => ApiRead('/staff/members/$id', MemberProfile.fromJson);
+
+  static const followUps = ApiRead('/staff/members/expiring', _followUps, query: {'days': 7, 'lapsed_days': 14});
+
+  static ({List<FollowUp> expiring, List<FollowUp> lapsed}) _followUps(Map<String, dynamic> json) {
+    List<FollowUp> rows(String key) => [for (final r in json[key] as List) FollowUp.fromJson(r as Map<String, dynamic>)];
+    return (expiring: rows('expiring'), lapsed: rows('lapsed'));
+  }
+
+  static ApiRead<Shift> shift({DateTime? date, int? staffId}) => ApiRead(
+        '/staff/payments/shift',
+        Shift.fromJson,
+        query: {if (date != null) 'date': _day(date), 'staff_id': ?staffId},
+      );
+
+  static const enquiries = ApiRead('/staff/leads', _enquiries);
+
+  static List<Enquiry> _enquiries(Map<String, dynamic> json) =>
+      [for (final l in json['leads'] as List) Enquiry.fromJson(l as Map<String, dynamic>)];
+
+  static ApiRead<List<ClassItem>> classes(DateTime day) =>
+      ApiRead('/staff/classes', _classes, query: {'date': _day(day)});
+
+  static List<ClassItem> _classes(Map<String, dynamic> json) =>
+      [for (final c in json['classes'] as List) ClassItem.fromJson(c as Map<String, dynamic>)];
+
+  static ApiRead<List<({MemberCard member, String status})>> roster(int classId) =>
+      ApiRead('/staff/classes/$classId/roster', _roster);
+
+  static List<({MemberCard member, String status})> _roster(Map<String, dynamic> json) => [
+        for (final b in (json['bookings'] as List).cast<Map<String, dynamic>>())
+          (member: MemberCard.fromJson(b['member'] as Map<String, dynamic>), status: b['status'] as String),
+      ];
+
+  static const trainerDashboard = ApiRead('/staff/trainer/dashboard', TrainerDashboard.fromJson);
+
+  static ApiRead<TrainingSummary?> training(int memberId) => ApiRead('/staff/members/$memberId/training', _training);
+
+  static TrainingSummary? _training(Map<String, dynamic> json) {
+    final t = json['training'];
+    return t == null ? null : TrainingSummary.fromJson(t as Map<String, dynamic>);
+  }
+
+  static ApiRead<List<TrainerNote>> notes(int memberId) => ApiRead('/staff/members/$memberId/notes', _notes);
+
+  static List<TrainerNote> _notes(Map<String, dynamic> json) =>
+      [for (final n in json['notes'] as List) TrainerNote.fromJson(n as Map<String, dynamic>)];
+
+  static const todayReport = ApiRead('/staff/reports/today', TodayReport.fromJson);
+
+  static ApiRead<PeriodReport> periodReport(String period) =>
+      ApiRead('/staff/reports/summary', PeriodReport.fromJson, query: {'period': period});
+}
+
 /// `/api/staff`, documented in the backend's STAFF_APP_API.md. Every method
 /// throws [AppFailure].
 class StaffApi {
@@ -70,6 +165,11 @@ class StaffApi {
         final res = await _dio.get<Map<String, dynamic>>(path, queryParameters: query);
         return res.data!;
       });
+
+  /// The answer to [read] as the server sent it, for the offline cache.
+  Future<Map<String, dynamic>> fetchJson(ApiRead<Object?> read) => _get(read.path, read.query);
+
+  Future<T> fetch<T>(ApiRead<T> read) async => read.parse(await fetchJson(read));
 
   // ── Signing in ────────────────────────────────────────────────────
 
@@ -152,13 +252,7 @@ class StaffApi {
     return [for (final m in json['members'] as List) OfflineMember.fromJson(m as Map<String, dynamic>)];
   }
 
-  Future<({int count, List<TodayCheckIn> checkIns})> todayCheckIns() async {
-    final json = await _get('/staff/checkins/today');
-    return (
-      count: json['count'] as int,
-      checkIns: [for (final c in json['checkins'] as List) TodayCheckIn.fromJson(c as Map<String, dynamic>)],
-    );
-  }
+  Future<({int count, List<TodayCheckIn> checkIns})> todayCheckIns() => fetch(StaffReads.todayCheckIns);
 
   Future<List<MemberCard>> lookup(String query) async {
     final json = await _get('/staff/members/lookup', {'q': query});
@@ -170,16 +264,10 @@ class StaffApi {
 
   // ── Members ───────────────────────────────────────────────────────
 
-  Future<({List<MemberCard> members, bool onlyAssigned, int lastPage})> members({String? search, int page = 1}) async {
-    final json = await _get('/staff/members', {'search': ?search, 'page': page});
-    return (
-      members: [for (final m in json['members'] as List) MemberCard.fromJson(m as Map<String, dynamic>)],
-      onlyAssigned: json['only_assigned'] as bool? ?? false,
-      lastPage: (json['meta'] as Map)['last_page'] as int,
-    );
-  }
+  Future<({List<MemberCard> members, bool onlyAssigned, int lastPage})> members({String? search, int page = 1}) =>
+      fetch(StaffReads.members(search: search, page: page));
 
-  Future<MemberProfile> member(int id) async => MemberProfile.fromJson(await _get('/staff/members/$id'));
+  Future<MemberProfile> member(int id) => fetch(StaffReads.member(id));
 
   Future<RegisterResult> register(Map<String, dynamic> fields, {bool confirmDuplicate = false}) => guardRequest(() async {
         final options = _once().copyWith(validateStatus: (s) => s != null && (s < 300 || s == 409));
@@ -212,11 +300,7 @@ class StaffApi {
 
   /// Who to call: memberships ending within [days], and ones that ended in
   /// the last [lapsedDays] without a renewal.
-  Future<({List<FollowUp> expiring, List<FollowUp> lapsed})> followUps({int days = 7, int lapsedDays = 14}) async {
-    final json = await _get('/staff/members/expiring', {'days': days, 'lapsed_days': lapsedDays});
-    List<FollowUp> rows(String key) => [for (final r in json[key] as List) FollowUp.fromJson(r as Map<String, dynamic>)];
-    return (expiring: rows('expiring'), lapsed: rows('lapsed'));
-  }
+  Future<({List<FollowUp> expiring, List<FollowUp> lapsed})> followUps() => fetch(StaffReads.followUps);
 
   // ── Payments ──────────────────────────────────────────────────────
 
@@ -277,17 +361,11 @@ class StaffApi {
         return PaymentRecord.fromJson(res.data!['payment'] as Map<String, dynamic>);
       });
 
-  Future<Shift> shift({DateTime? date, int? staffId}) async => Shift.fromJson(await _get('/staff/payments/shift', {
-        if (date != null) 'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
-        'staff_id': ?staffId,
-      }));
+  Future<Shift> shift({DateTime? date, int? staffId}) => fetch(StaffReads.shift(date: date, staffId: staffId));
 
   // ── Walk-in enquiries ─────────────────────────────────────────────
 
-  Future<List<Enquiry>> enquiries() async {
-    final json = await _get('/staff/leads');
-    return [for (final l in json['leads'] as List) Enquiry.fromJson(l as Map<String, dynamic>)];
-  }
+  Future<List<Enquiry>> enquiries() => fetch(StaffReads.enquiries);
 
   Future<EnquiryResult> recordEnquiry(Map<String, dynamic> fields, {bool confirm = false}) => guardRequest(() async {
         final options = _once().copyWith(validateStatus: (s) => s != null && (s < 300 || s == 409));
@@ -325,20 +403,9 @@ class StaffApi {
 
   // ── Classes ───────────────────────────────────────────────────────
 
-  Future<List<ClassItem>> classes(DateTime day) async {
-    final json = await _get('/staff/classes', {
-      'date': '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}',
-    });
-    return [for (final c in json['classes'] as List) ClassItem.fromJson(c as Map<String, dynamic>)];
-  }
+  Future<List<ClassItem>> classes(DateTime day) => fetch(StaffReads.classes(day));
 
-  Future<List<({MemberCard member, String status})>> roster(int classId) async {
-    final json = await _get('/staff/classes/$classId/roster');
-    return [
-      for (final b in (json['bookings'] as List).cast<Map<String, dynamic>>())
-        (member: MemberCard.fromJson(b['member'] as Map<String, dynamic>), status: b['status'] as String),
-    ];
-  }
+  Future<List<({MemberCard member, String status})>> roster(int classId) => fetch(StaffReads.roster(classId));
 
   /// Books a member into a class. Returns the server's message (e.g. already booked).
   Future<String> bookClass(int classId, int memberId) => guardRequest(() async {
@@ -355,17 +422,11 @@ class StaffApi {
 
   // ── Trainers ──────────────────────────────────────────────────────
 
-  Future<TrainerDashboard> trainerDashboard() async => TrainerDashboard.fromJson(await _get('/staff/trainer/dashboard'));
+  Future<TrainerDashboard> trainerDashboard() => fetch(StaffReads.trainerDashboard);
 
-  Future<TrainingSummary?> training(int memberId) async {
-    final t = (await _get('/staff/members/$memberId/training'))['training'];
-    return t == null ? null : TrainingSummary.fromJson(t as Map<String, dynamic>);
-  }
+  Future<TrainingSummary?> training(int memberId) => fetch(StaffReads.training(memberId));
 
-  Future<List<TrainerNote>> notes(int memberId) async {
-    final json = await _get('/staff/members/$memberId/notes');
-    return [for (final n in json['notes'] as List) TrainerNote.fromJson(n as Map<String, dynamic>)];
-  }
+  Future<List<TrainerNote>> notes(int memberId) => fetch(StaffReads.notes(memberId));
 
   Future<void> addNote(int memberId, {required String type, required String note, required DateTime sessionDate}) =>
       guardRequest(() => _dio.post<void>('/staff/members/$memberId/notes',
@@ -381,10 +442,9 @@ class StaffApi {
 
   // ── Owners and managers ───────────────────────────────────────────
 
-  Future<TodayReport> todayReport() async => TodayReport.fromJson(await _get('/staff/reports/today'));
+  Future<TodayReport> todayReport() => fetch(StaffReads.todayReport);
 
-  Future<PeriodReport> periodReport(String period) async =>
-      PeriodReport.fromJson(await _get('/staff/reports/summary', {'period': period}));
+  Future<PeriodReport> periodReport(String period) => fetch(StaffReads.periodReport(period));
 }
 
 final staffApiProvider = Provider<StaffApi>((ref) => StaffApi(ref.watch(dioProvider)));

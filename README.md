@@ -53,6 +53,19 @@ front-desk device deletes them when it stops being the front desk: *Stop using a
 (which warns about unsent check-ins), or as soon as it finds it was removed on the web, so a lost
 or retired tablet doesn't keep the gym's member list.
 
+## Saved screens
+
+Screens open with what they showed last time and refresh in the background
+(`lib/data/repositories/read_cache.dart`). Each read in `StaffReads` is kept in an
+encrypted SQLite database (Drift on SQLite3MultipleCiphers, key in secure storage) as the
+server sent it, and parsed the same way as a live answer. Offline, a screen keeps its saved
+data with "Offline · updated 5 min ago", and a warning once it is more than a day old.
+Searches, payments and plans are never saved. On the front-desk device the saved screens
+are shared by everyone who signs in there; on a personal phone they belong to that person
+and are deleted when they sign out, as is everything when a phone stops being the front
+desk. Rows not refreshed for 14 days are dropped. After changing the tables, run
+`dart run build_runner build`.
+
 ## Signing in
 
 - **Own phone:** email and password, as on the web. Tokens are short-lived and

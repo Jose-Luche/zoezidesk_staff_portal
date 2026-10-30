@@ -58,14 +58,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: Routes.login, builder: (_, _) => const LoginScreen()),
       GoRoute(path: Routes.enrol, builder: (_, _) => const EnrolScreen()),
       GoRoute(path: Routes.lock, builder: (_, _) => const LockScreen()),
-      // Every tab exists; the shell shows only the ones this staff member has.
-      ShellRoute(
-        builder: (_, state, child) => AppShell(location: state.matchedLocation, child: child),
-        routes: [
-          GoRoute(path: Routes.home, builder: (_, _) => const HomeScreen()),
-          GoRoute(path: Routes.members, builder: (_, _) => const MembersScreen()),
-          GoRoute(path: Routes.clients, builder: (_, _) => const MembersScreen(clientsOnly: true)),
-          GoRoute(path: Routes.classes, builder: (_, _) => const ClassesScreen()),
+      // Every tab exists, one branch each in allTabs order; the shell shows
+      // only the ones this staff member has. A tab keeps its screen (scroll,
+      // search, filters) while another is showing.
+      StatefulShellRoute.indexedStack(
+        builder: (_, _, shell) => AppShell(shell: shell),
+        branches: [
+          StatefulShellBranch(routes: [GoRoute(path: Routes.home, builder: (_, _) => const HomeScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: Routes.members, builder: (_, _) => const MembersScreen())]),
+          StatefulShellBranch(
+            routes: [GoRoute(path: Routes.clients, builder: (_, _) => const MembersScreen(clientsOnly: true))],
+          ),
+          StatefulShellBranch(routes: [GoRoute(path: Routes.classes, builder: (_, _) => const ClassesScreen())]),
         ],
       ),
       // The old front-desk tab is the Desk home now.
@@ -129,25 +133,24 @@ final routerProvider = Provider<GoRouter>((ref) {
 
 /// The floating pill nav, built from the staff member's permissions.
 class AppShell extends ConsumerWidget {
-  const AppShell({super.key, required this.location, required this.child});
+  const AppShell({super.key, required this.shell});
 
-  final String location;
-  final Widget child;
+  final StatefulNavigationShell shell;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tabs = tabsFor(ref.watch(staffProvider));
-    final index = tabs.indexWhere((t) => location.startsWith(t.path));
+    final index = tabs.indexWhere((t) => t.path == allTabs[shell.currentIndex].path);
 
     return Scaffold(
       extendBody: true,
-      body: child,
+      body: shell,
       bottomNavigationBar: tabs.length < 2
           ? null
           : PillNav(
               labels: [for (final t in tabs) t.label],
               selected: index < 0 ? 0 : index,
-              onSelected: (i) => context.go(tabs[i].path),
+              onSelected: (i) => shell.goBranch(allTabs.indexWhere((t) => t.path == tabs[i].path)),
             ),
     );
   }
